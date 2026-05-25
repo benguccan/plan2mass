@@ -328,14 +328,11 @@ function App() {
   const canvasRef = useRef(null)
   const viewerPanelRef = useRef(null)
   const modelRef = useRef(null)
-  const rendererRef = useRef(null)
   const sceneRef = useRef(null)
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
   const animationRef = useRef(null)
   const viewerRef = useRef(null)
-  const renderPollingRef = useRef(null)
-  const autoRenderKeyRef = useRef("")
 
   const [project, setProject] = useState(null)
   const [routePath, setRoutePath] = useState(() =>
@@ -352,7 +349,6 @@ function App() {
   const [toasts, setToasts] = useState([])
   const [isDropActive, setIsDropActive] = useState(false)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
-  const [viewerBuildToken, setViewerBuildToken] = useState(0)
   const [showGeometryDebug, setShowGeometryDebug] = useState(false)
   const [authToken, setAuthToken] = useState(() => window.localStorage.getItem(AUTH_STORAGE_KEY) || "")
   const [authUser, setAuthUser] = useState(null)
@@ -368,12 +364,6 @@ function App() {
   const [userProjects, setUserProjects] = useState([])
   const [colorPaletteApplied, setColorPaletteApplied] = useState(defaultPalette)
   const [colorPaletteDraft, setColorPaletteDraft] = useState(defaultPalette)
-  const [renderPreview, setRenderPreview] = useState({
-    status: "idle",
-    renderId: null,
-    imageUrl: "",
-    error: "",
-  })
   const [sidebarSections, setSidebarSections] = useState({
     upload: true,
     settings: true,
@@ -651,28 +641,9 @@ function App() {
     }
 
     setIsLoading(true)
-    resetRenderPreview()
     applyLocalDemoProject()
     setIsLoading(false)
   }, [])
-
-  const stopRenderPolling = () => {
-    if (renderPollingRef.current) {
-      window.clearInterval(renderPollingRef.current)
-      renderPollingRef.current = null
-    }
-  }
-
-  const resetRenderPreview = () => {
-    stopRenderPolling()
-    autoRenderKeyRef.current = ""
-    setRenderPreview({
-      status: "idle",
-      renderId: null,
-      imageUrl: "",
-      error: "",
-    })
-  }
 
   const loadProject = async (id) => {
     setIsLoading(true)
@@ -707,11 +678,6 @@ function App() {
       if (id && id !== "demo" && id !== "demo-local") {
         window.localStorage.setItem(LAST_PROJECT_STORAGE_KEY, id)
       }
-      setRenderPreview((current) => ({
-        ...current,
-        imageUrl: "",
-        error: "",
-      }))
 
       if (typeof json.floor_height === "number") {
         setFloorHeight(json.floor_height)
@@ -773,7 +739,6 @@ function App() {
 
     setIsLoading(true)
     setError("")
-    resetRenderPreview()
 
     try {
       const fd = new FormData()
@@ -916,112 +881,9 @@ function App() {
     setError("")
     setSelectedFloorCount(3)
     setActiveFloor("building")
-    resetRenderPreview()
     window.localStorage.removeItem(LAST_PROJECT_STORAGE_KEY)
     applyLocalDemoProject()
     pushToast("Returned to demo project", "success")
-  }
-
-  const startRenderPolling = (renderId) => {
-    stopRenderPolling()
-
-    renderPollingRef.current = window.setInterval(async () => {
-      try {
-        const response = await fetch(`${API}/render-status/${renderId}`)
-        const json = await response.json()
-
-        if (!response.ok) {
-          throw new Error(json?.detail || "Render status could not be loaded")
-        }
-
-        if (json.status === "done") {
-          stopRenderPolling()
-          setRenderPreview({
-            status: "done",
-            renderId,
-            imageUrl: `${API}${json.image_url}`,
-            error: "",
-          })
-          pushToast("Architectural render is ready", "success")
-          return
-        }
-
-        if (json.status === "failed") {
-          stopRenderPolling()
-          setRenderPreview({
-            status: "error",
-            renderId,
-            imageUrl: "",
-            error: json.error || "Render failed",
-          })
-          pushToast("Architectural render failed", "error")
-        }
-      } catch (pollError) {
-        stopRenderPolling()
-        setRenderPreview({
-          status: "error",
-          renderId,
-          imageUrl: "",
-          error: pollError.message || "Render polling failed",
-        })
-      }
-    }, 2500)
-  }
-
-  const triggerArchitecturalRender = async () => {
-    if (!viewerRef.current || !project?.project_id) return
-    const renderKey = `${project.project_id}:${floorHeight}`
-    if (autoRenderKeyRef.current === renderKey) return
-    autoRenderKeyRef.current = renderKey
-
-    setRenderPreview({
-      status: "loading",
-      renderId: null,
-      imageUrl: "",
-      error: "",
-    })
-
-    try {
-      const exportPromise = viewerRef.current.exportGlbBlob(
-        `${project.project_id || "plan2mass"}-model`
-      )
-      const exportTimeoutPromise = new Promise((_, reject) => {
-        window.setTimeout(() => {
-          reject(new Error("3D model export timed out before render could start"))
-        }, 15000)
-      })
-      const { blob, filename } = await Promise.race([exportPromise, exportTimeoutPromise])
-
-      const formData = new FormData()
-      formData.append("file", blob, filename || `${project.project_id}-model.glb`)
-      formData.append("project_id", project.project_id)
-
-      const response = await fetch(`${API}/generate-render`, {
-        method: "POST",
-        body: formData,
-      })
-      const json = await response.json()
-
-      if (!response.ok) {
-        throw new Error(json?.detail || "Architectural render could not be started")
-      }
-
-      setRenderPreview({
-        status: "loading",
-        renderId: json.render_id,
-        imageUrl: "",
-        error: "",
-      })
-      startRenderPolling(json.render_id)
-    } catch (renderError) {
-      console.error("Architectural render start error:", renderError)
-      setRenderPreview({
-        status: "error",
-        renderId: null,
-        imageUrl: "",
-        error: renderError.message || "Architectural render could not be created",
-      })
-    }
   }
 
   const downloadModel = () => {
@@ -1258,12 +1120,10 @@ function App() {
       })
 
       viewerRef.current = viewer
-      rendererRef.current = viewer.engine
       sceneRef.current = viewer.scene
       cameraRef.current = viewer.camera
       controlsRef.current = null
       modelRef.current = viewer.root
-      setViewerBuildToken(Date.now())
       setError("")
     } catch (sceneError) {
       console.error("Babylon scene init error:", sceneError)
@@ -1273,27 +1133,12 @@ function App() {
     return () => {
       disposeBabylonViewer(viewer)
       viewerRef.current = null
-      rendererRef.current = null
       sceneRef.current = null
       cameraRef.current = null
       controlsRef.current = null
       modelRef.current = null
     }
   }, [project, viewerProject, geometryMeta, activeFloor, resolvedActiveFloor, floorHeight, showGeometryDebug, colorPaletteApplied])
-
-  useEffect(() => {
-    if (activeFloor !== "building") return
-    if (!project?.project_id) return
-    if (!viewerBuildToken) return
-    triggerArchitecturalRender()
-  }, [viewerBuildToken, activeFloor, project?.project_id, floorHeight])
-
-
-  useEffect(() => {
-    return () => {
-      stopRenderPolling()
-    }
-  }, [])
 
   if (routePath !== "/app") {
     return (
@@ -1976,40 +1821,6 @@ function App() {
               )}
             </div>
 
-            <div style={infoPanelStyle}>
-              <div style={infoTitleStyle}>Architectural Render Preview</div>
-              {renderPreview.status === "loading" ? (
-                <div style={renderPreviewLoadingCardStyle}>
-                  <div style={renderPreviewSkeletonStyle} />
-                  <div style={infoTextStyle}>Generating high-quality architectural render...</div>
-                </div>
-              ) : null}
-              {renderPreview.status === "done" && renderPreview.imageUrl ? (
-                <div style={renderPreviewCardStyle}>
-                  <img
-                    src={renderPreview.imageUrl}
-                    alt="Architectural render"
-                    style={renderPreviewImageStyle}
-                  />
-                  <a
-                    href={renderPreview.imageUrl}
-                    download
-                    style={renderPreviewDownloadStyle}
-                  >
-                    Download Render
-                  </a>
-                </div>
-              ) : null}
-              {renderPreview.status === "error" ? (
-                <div style={errorCardStyle}>{renderPreview.error || "Render failed"}</div>
-              ) : null}
-              {renderPreview.status === "idle" ? (
-                <div style={infoTextStyle}>
-                  Upload a plan to automatically generate a final architectural render preview.
-                </div>
-              ) : null}
-            </div>
-
             <div style={statsGridStyle}>
               <div style={statCardStyle}>
                 <div style={statLabelStyle}>Rooms</div>
@@ -2045,7 +1856,7 @@ function App() {
                 Outer polygon, inner walls, doors, and windows come from backend JSON outputs.
               </div>
               <div style={infoTextStyle}>
-                Wall matching and cleaner segmentation are applied before render scaling.
+                Wall matching and cleaner segmentation are applied before Babylon building generation.
               </div>
             </div>
 
@@ -6244,47 +6055,6 @@ const viewerActionButtonStyle = {
   background: "rgba(255,255,255,0.05)",
   color: "#eef5f9",
   cursor: "pointer",
-  fontWeight: 700,
-}
-
-const renderPreviewLoadingCardStyle = {
-  display: "grid",
-  gap: 12,
-}
-
-const renderPreviewSkeletonStyle = {
-  width: "100%",
-  aspectRatio: "16 / 10",
-  borderRadius: 18,
-  background:
-    "linear-gradient(120deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.16) 42%, rgba(255,255,255,0.06) 100%)",
-  backgroundSize: "200% 100%",
-  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
-}
-
-const renderPreviewCardStyle = {
-  display: "grid",
-  gap: 12,
-}
-
-const renderPreviewImageStyle = {
-  width: "100%",
-  display: "block",
-  borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 20px 48px rgba(0,0,0,0.22)",
-}
-
-const renderPreviewDownloadStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "10px 14px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.05)",
-  color: "#eef5f9",
-  textDecoration: "none",
   fontWeight: 700,
 }
 

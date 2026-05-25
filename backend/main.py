@@ -9,9 +9,7 @@ from typing import List, Tuple, Dict, Any, Optional
 from pathlib import Path
 from uuid import uuid4
 from math import hypot
-from threading import Lock, Thread
 from datetime import datetime, timezone
-import subprocess
 import shutil
 import os
 import sqlite3
@@ -39,17 +37,9 @@ app.add_middleware(
 BASE_DIR = Path(__file__).resolve().parent
 UPLOADS_DIR = BASE_DIR / "uploads"
 DEBUG_DIR = BASE_DIR / "debug"
-RENDERS_DIR = BASE_DIR / "renders"
-RENDER_JOBS_DIR = RENDERS_DIR / "jobs"
-BLENDER_DIR = BASE_DIR / "blender"
-BLENDER_SCRIPT_PATH = BLENDER_DIR / "render_script.py"
-BLENDER_TEMPLATE_PATH = BLENDER_DIR / "template.blend"
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-RENDERS_DIR.mkdir(parents=True, exist_ok=True)
-RENDER_JOBS_DIR.mkdir(parents=True, exist_ok=True)
-BLENDER_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = BASE_DIR / "app.db"
 AUTH_SECRET = os.getenv("AUTH_SECRET", "plan2mass-dev-secret")
@@ -155,7 +145,6 @@ def get_user_from_auth_header(authorization: Optional[str]) -> Optional[Dict[str
 
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.mount("/debug", StaticFiles(directory=str(DEBUG_DIR)), name="debug")
-app.mount("/renders", StaticFiles(directory=str(RENDERS_DIR)), name="renders")
 init_db()
 
 
@@ -174,129 +163,9 @@ MIN_LINEAR_COMPONENT_LENGTH = 80
 
 SAVE_DEBUG_IMAGES = True
 
-render_jobs: Dict[str, Dict[str, Any]] = {}
-render_jobs_lock = Lock()
-
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def get_blender_executable() -> str:
-    configured = os.getenv("BLENDER_BIN")
-    if configured:
-        return configured
-
-    for candidate in ("blender", "blender.exe"):
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-
-    common_windows_paths = [
-        Path("C:/Program Files/Blender Foundation/Blender 5.1/blender.exe"),
-        Path("C:/Program Files/Blender Foundation/Blender 5.0/blender.exe"),
-        Path("C:/Program Files/Blender Foundation/Blender 4.2/blender.exe"),
-        Path("C:/Program Files/Blender Foundation/Blender 4.1/blender.exe"),
-        Path("C:/Program Files/Blender Foundation/Blender 4.0/blender.exe"),
-    ]
-    for candidate in common_windows_paths:
-        if candidate.exists():
-            return str(candidate)
-
-    return "blender"
-
-
-def set_render_job(render_id: str, payload: Dict[str, Any]) -> None:
-    with render_jobs_lock:
-        current = render_jobs.get(render_id, {})
-        current.update(payload)
-        render_jobs[render_id] = current
-
-
-def get_render_job(render_id: str) -> Optional[Dict[str, Any]]:
-    with render_jobs_lock:
-        job = render_jobs.get(render_id)
-        return dict(job) if job else None
-
-
-def start_blender_render_job(render_id: str, model_path: Path, output_path: Path) -> None:
-    def worker() -> None:
-        set_render_job(render_id, {
-            "status": "pending",
-            "updated_at": utc_now_iso(),
-        })
-
-        if not BLENDER_SCRIPT_PATH.exists():
-            set_render_job(render_id, {
-                "status": "failed",
-                "error": f"Blender script bulunamadi: {BLENDER_SCRIPT_PATH.name}",
-                "updated_at": utc_now_iso(),
-            })
-            return
-
-        if not BLENDER_TEMPLATE_PATH.exists():
-            set_render_job(render_id, {
-                "status": "failed",
-                "error": f"template.blend bulunamadi. Konum: {BLENDER_TEMPLATE_PATH}",
-                "updated_at": utc_now_iso(),
-            })
-            return
-
-        blender_bin = get_blender_executable()
-        command = [
-            blender_bin,
-            "-b",
-            str(BLENDER_TEMPLATE_PATH),
-            "-P",
-            str(BLENDER_SCRIPT_PATH),
-            "--",
-            str(model_path),
-            str(output_path),
-        ]
-
-        try:
-            completed = subprocess.run(
-                command,
-                cwd=str(BLENDER_DIR),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except FileNotFoundError:
-            set_render_job(render_id, {
-                "status": "failed",
-                "error": "Blender executable bulunamadi. BLENDER_BIN ortam degiskenini ayarlayin.",
-                "updated_at": utc_now_iso(),
-            })
-            return
-        except Exception as exc:
-            set_render_job(render_id, {
-                "status": "failed",
-                "error": f"Blender cagrisi basarisiz: {exc}",
-                "updated_at": utc_now_iso(),
-            })
-            return
-
-        stdout_tail = completed.stdout[-4000:] if completed.stdout else ""
-        stderr_tail = completed.stderr[-4000:] if completed.stderr else ""
-
-        if completed.returncode != 0 or not output_path.exists():
-            set_render_job(render_id, {
-                "status": "failed",
-                "error": stderr_tail or stdout_tail or f"Blender render basarisiz. Return code: {completed.returncode}",
-                "updated_at": utc_now_iso(),
-            })
-            return
-
-        set_render_job(render_id, {
-            "status": "done",
-            "image_url": f"/renders/{output_path.name}",
-            "updated_at": utc_now_iso(),
-            "blender_stdout": stdout_tail,
-            "blender_stderr": stderr_tail,
-        })
-
-    Thread(target=worker, daemon=True).start()
 
 
 def safe_suffix(filename: str) -> str:
@@ -2270,74 +2139,6 @@ def analyze_project(project_id: str, floor_height: float = DEFAULT_FLOOR_HEIGHT)
 @app.get("/projects/{project_id}")
 def get_project(project_id: str, floor_height: float = DEFAULT_FLOOR_HEIGHT) -> Dict[str, Any]:
     return process_project(project_id=project_id, floor_height=floor_height)
-
-
-@app.post("/generate-render")
-async def generate_render(
-    file: Optional[UploadFile] = File(None),
-    project_id: Optional[str] = Form(None),
-    model_path: Optional[str] = Form(None),
-) -> Dict[str, Any]:
-    if file is None and not model_path:
-        raise HTTPException(status_code=400, detail="GLB dosyasi veya model_path gerekli")
-
-    render_id = str(uuid4())
-    job_dir = RENDER_JOBS_DIR / render_id
-    job_dir.mkdir(parents=True, exist_ok=True)
-
-    if file is not None:
-        suffix = Path(file.filename or "model.glb").suffix.lower() or ".glb"
-        if suffix not in {".glb", ".gltf"}:
-            raise HTTPException(status_code=400, detail="Sadece GLB/GLTF destekleniyor")
-        saved_model_path = job_dir / f"model{suffix}"
-        save_uploaded_image(file, saved_model_path)
-    else:
-        candidate = Path(model_path)
-        if not candidate.is_absolute():
-            candidate = (BASE_DIR / candidate).resolve()
-        if not candidate.exists():
-            raise HTTPException(status_code=404, detail="Model path bulunamadi")
-        suffix = candidate.suffix.lower()
-        if suffix not in {".glb", ".gltf"}:
-            raise HTTPException(status_code=400, detail="Sadece GLB/GLTF destekleniyor")
-        saved_model_path = job_dir / f"model{suffix}"
-        shutil.copy2(candidate, saved_model_path)
-
-    output_path = RENDERS_DIR / f"{render_id}.png"
-
-    set_render_job(render_id, {
-        "render_id": render_id,
-        "project_id": project_id,
-        "status": "processing",
-        "image_url": None,
-        "error": None,
-        "model_path": str(saved_model_path),
-        "output_path": str(output_path),
-        "created_at": utc_now_iso(),
-        "updated_at": utc_now_iso(),
-    })
-
-    start_blender_render_job(render_id, saved_model_path, output_path)
-
-    return {
-        "status": "processing",
-        "render_id": render_id,
-    }
-
-
-@app.get("/render-status/{render_id}")
-def render_status(render_id: str) -> Dict[str, Any]:
-    job = get_render_job(render_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Render bulunamadi")
-
-    return {
-        "render_id": render_id,
-        "status": job.get("status", "pending"),
-        "image_url": job.get("image_url"),
-        "error": job.get("error"),
-        "updated_at": job.get("updated_at"),
-    }
 
 
 @app.post("/upload-plan")
