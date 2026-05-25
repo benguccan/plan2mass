@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js"
@@ -9,24 +9,11 @@ import {
   matchOpeningsToWalls,
   splitWallsByOpenings,
 } from "./wallGraph"
-import {
-  createBabylonViewer,
-  disposeBabylonViewer,
-} from "./babylonRenderer"
-import { buildWorldTransform } from "./worldTransform"
-import {
-  AUTH_GATE_OPEN_APP_MESSAGE,
-  AUTH_GATE_ROUTE_MESSAGE,
-  canAccessApp,
-  getProtectedButtonStyle,
-} from "./authGate"
 
-const API = "http://127.0.0.1:8010"
-const AUTH_STORAGE_KEY = "plan2mass:auth-token"
-const LOCAL_AUTH_USERS_KEY = "plan2mass:local-auth-users"
+const API = "http://127.0.0.1:8000"
 
-const OUTER_WALL_THICKNESS = 0.30
-const INNER_WALL_THICKNESS = 0.12
+const OUTER_WALL_THICKNESS = 0.36
+const INNER_WALL_THICKNESS = 0.18
 const SLAB_THICKNESS = 0.18
 const ROOF_THICKNESS = 0.18
 
@@ -39,16 +26,6 @@ const DOOR_OPENING_WIDTH_PX = 92
 const WINDOW_OPENING_WIDTH_PX = 120
 
 const TARGET_MODEL_SIZE = 22
-const LAST_PROJECT_STORAGE_KEY = "plan2mass:last-project-id"
-const defaultPalette = {
-  walls: "#ddd4c7",
-  slabs: "#d2c0aa",
-  roof: "#bfc5cb",
-  frames: "#2f363e",
-  glass: "#a7bac9",
-  door: "#845535",
-  ground: "#cec5b5",
-}
 
 function createLocalDemoProject(floorHeight = 3.2) {
   const basePolygon = [
@@ -57,205 +34,127 @@ function createLocalDemoProject(floorHeight = 3.2) {
     [540, 300],
     [40, 300],
   ]
-  const floor1CleanGeometry = {
-    polygon: basePolygon,
-    stairs: [
-      {
-        id: "f1-stair-1",
-        bounds: [220, 48, 320, 100],
-        direction: "down",
-        steps: 6,
-      },
-    ],
-    rooms: [
-      { id: "f1c-r1", x: 105, y: 172 },
-      { id: "f1c-r2", x: 280, y: 95 },
-      { id: "f1c-r3", x: 455, y: 95 },
-      { id: "f1c-r4", x: 280, y: 222 },
-      { id: "f1c-r5", x: 455, y: 222 },
-    ],
-    inner_walls: [
-      [180, 40, 180, 300],
-      [360, 40, 360, 300],
-      [180, 155, 540, 155],
-    ],
-    doors: [
-      { x: 180, y: 248, width: 88 },
-      { x: 270, y: 155, width: 92 },
-      { x: 360, y: 110, width: 84 },
-      { x: 360, y: 210, width: 84 },
-      { x: 300, y: 300, width: 104 },
-    ],
-    windows: [
-      { x: 105, y: 40, width: 86 },
-      { x: 270, y: 40, width: 88 },
-      { x: 460, y: 40, width: 88 },
-      { x: 40, y: 170, width: 86 },
-      { x: 115, y: 300, width: 88 },
-      { x: 540, y: 225, width: 86 },
-    ],
-  }
-  const floor2CleanGeometry = {
-    polygon: basePolygon,
-    stairs: [
-      {
-        id: "f2-stair-1",
-        bounds: [230, 48, 330, 102],
-        direction: "down",
-        steps: 6,
-      },
-    ],
-    rooms: [
-      { id: "f2c-r1", x: 105, y: 170 },
-      { id: "f2c-r2", x: 270, y: 95 },
-      { id: "f2c-r3", x: 450, y: 95 },
-      { id: "f2c-r4", x: 270, y: 232 },
-      { id: "f2c-r5", x: 450, y: 232 },
-    ],
-    inner_walls: [
-      [180, 40, 180, 195],
-      [180, 195, 230, 195],
-      [230, 195, 230, 300],
-      [360, 40, 360, 300],
-      [230, 195, 360, 195],
-      [360, 155, 540, 155],
-    ],
-    doors: [
-      { x: 180, y: 120, width: 88 },
-      { x: 270, y: 195, width: 92 },
-      { x: 360, y: 110, width: 84 },
-      { x: 360, y: 225, width: 84 },
-    ],
-    windows: [
-      { x: 105, y: 40, width: 86 },
-      { x: 270, y: 40, width: 88 },
-      { x: 455, y: 40, width: 88 },
-      { x: 40, y: 170, width: 86 },
-      { x: 540, y: 225, width: 86 },
-      { x: 110, y: 300, width: 88 },
-      { x: 300, y: 300, width: 88 },
-    ],
-  }
-  const floor3CleanGeometry = {
-    polygon: basePolygon,
-    stairs: [
-      {
-        id: "f3-stair-1",
-        bounds: [215, 48, 315, 100],
-        direction: "down",
-        steps: 6,
-      },
-    ],
-    rooms: [
-      { id: "f3c-r1", x: 105, y: 100 },
-      { id: "f3c-r2", x: 105, y: 232 },
-      { id: "f3c-r3", x: 272, y: 178 },
-      { id: "f3c-r4", x: 452, y: 100 },
-      { id: "f3c-r5", x: 452, y: 232 },
-    ],
-    inner_walls: [
-      [160, 40, 160, 125],
-      [40, 125, 160, 125],
-      [100, 125, 100, 195],
-      [40, 195, 100, 195],
-      [100, 195, 260, 195],
-      [260, 145, 260, 300],
-      [360, 40, 360, 155],
-      [260, 155, 540, 155],
-    ],
-    doors: [
-      { x: 100, y: 162, width: 52 },
-      { x: 132, y: 125, width: 40 },
-      { x: 205, y: 195, width: 92 },
-      { x: 300, y: 155, width: 92 },
-      { x: 360, y: 98, width: 84 },
-    ],
-    windows: [
-      { x: 105, y: 40, width: 86 },
-      { x: 245, y: 40, width: 88 },
-      { x: 455, y: 40, width: 88 },
-      { x: 40, y: 80, width: 84 },
-      { x: 40, y: 220, width: 84 },
-      { x: 185, y: 300, width: 88 },
-      { x: 420, y: 300, width: 88 },
-      { x: 540, y: 85, width: 84 },
-      { x: 540, y: 225, width: 84 },
-    ],
-  }
 
   const floorTemplates = [
     {
-      rooms: floor1CleanGeometry.rooms,
-      inner_walls: floor1CleanGeometry.inner_walls,
-      doors: floor1CleanGeometry.doors,
-      windows: floor1CleanGeometry.windows,
+      rooms: [
+        { id: "f1-r1", x: 118, y: 104 },
+        { id: "f1-r2", x: 278, y: 104 },
+        { id: "f1-r3", x: 446, y: 104 },
+        { id: "f1-r4", x: 116, y: 236 },
+        { id: "f1-r5", x: 246, y: 236 },
+        { id: "f1-r6", x: 444, y: 236 },
+      ],
+      inner_walls: [
+        [195, 40, 195, 300],
+        [360, 40, 360, 300],
+        [40, 170, 540, 170],
+        [285, 170, 285, 300],
+      ],
+      doors: [
+        { x: 290, y: 300, width: 102 },
+        { x: 195, y: 108, width: 88 },
+        { x: 195, y: 230, width: 88 },
+        { x: 360, y: 108, width: 86 },
+        { x: 360, y: 230, width: 86 },
+        { x: 285, y: 170, width: 84 },
+      ],
+      windows: [
+        { x: 120, y: 300, width: 112 },
+        { x: 455, y: 300, width: 112 },
+        { x: 120, y: 40, width: 108 },
+        { x: 275, y: 40, width: 96 },
+        { x: 440, y: 40, width: 104 },
+        { x: 540, y: 110, width: 86 },
+      ],
     },
     {
-      rooms: floor2CleanGeometry.rooms,
-      inner_walls: floor2CleanGeometry.inner_walls,
-      doors: floor2CleanGeometry.doors,
-      windows: floor2CleanGeometry.windows,
+      rooms: [
+        { id: "f2-r1", x: 108, y: 98 },
+        { id: "f2-r2", x: 255, y: 98 },
+        { id: "f2-r3", x: 470, y: 116 },
+        { id: "f2-r4", x: 110, y: 232 },
+        { id: "f2-r5", x: 286, y: 232 },
+        { id: "f2-r6", x: 468, y: 252 },
+      ],
+      inner_walls: [
+        [180, 40, 180, 300],
+        [330, 40, 330, 300],
+        [420, 40, 420, 220],
+        [40, 165, 420, 165],
+        [245, 165, 245, 300],
+      ],
+      doors: [
+        { x: 280, y: 300, width: 102 },
+        { x: 180, y: 100, width: 86 },
+        { x: 180, y: 225, width: 86 },
+        { x: 330, y: 102, width: 84 },
+        { x: 330, y: 210, width: 84 },
+        { x: 420, y: 112, width: 82 },
+        { x: 245, y: 228, width: 82 },
+      ],
+      windows: [
+        { x: 110, y: 300, width: 104 },
+        { x: 390, y: 300, width: 102 },
+        { x: 500, y: 300, width: 84 },
+        { x: 110, y: 40, width: 102 },
+        { x: 255, y: 40, width: 94 },
+        { x: 505, y: 145, width: 86 },
+      ],
     },
     {
-      rooms: floor3CleanGeometry.rooms,
-      inner_walls: floor3CleanGeometry.inner_walls,
-      doors: floor3CleanGeometry.doors,
-      windows: floor3CleanGeometry.windows,
+      rooms: [
+        { id: "f3-r1", x: 122, y: 96 },
+        { id: "f3-r2", x: 286, y: 96 },
+        { id: "f3-r3", x: 445, y: 96 },
+        { id: "f3-r4", x: 120, y: 228 },
+        { id: "f3-r5", x: 246, y: 228 },
+        { id: "f3-r6", x: 446, y: 228 },
+      ],
+      inner_walls: [
+        [205, 40, 205, 300],
+        [365, 40, 365, 300],
+        [40, 155, 365, 155],
+        [285, 155, 285, 300],
+      ],
+      doors: [
+        { x: 295, y: 300, width: 102 },
+        { x: 205, y: 96, width: 86 },
+        { x: 205, y: 222, width: 86 },
+        { x: 365, y: 98, width: 86 },
+        { x: 365, y: 214, width: 86 },
+        { x: 285, y: 224, width: 82 },
+      ],
+      windows: [
+        { x: 122, y: 300, width: 110 },
+        { x: 455, y: 300, width: 110 },
+        { x: 115, y: 40, width: 104 },
+        { x: 285, y: 40, width: 96 },
+        { x: 455, y: 40, width: 104 },
+      ],
     },
   ]
 
   const makeFloor = (index) => ({
     floor_index: index + 1,
-    image_url:
-      index === 0
-        ? "/demo/floor_1_clean.png"
-        : index === 1
-          ? "/demo/floor_2_clean.png"
-          : index === 2
-            ? "/demo/floor_3_clean.png"
-            : `/demo/floor_${index + 1}.png`,
-    polygon:
-      index === 0
-        ? floor1CleanGeometry.polygon
-        : index === 1
-          ? floor2CleanGeometry.polygon
-          : index === 2
-            ? floor3CleanGeometry.polygon
-            : basePolygon,
+    image_url: `/demo/floor_${index + 1}.png`,
+    polygon: basePolygon,
     inner_walls: floorTemplates[index].inner_walls,
     doors: floorTemplates[index].doors,
     windows: floorTemplates[index].windows,
-    stairs:
-      index === 0
-        ? floor1CleanGeometry.stairs
-        : index === 1
-          ? floor2CleanGeometry.stairs
-          : index === 2
-            ? floor3CleanGeometry.stairs
-            : [],
     rooms: floorTemplates[index].rooms,
     summary: {
-      polygon_points:
-        (
-          index === 0
-            ? floor1CleanGeometry.polygon
-            : index === 1
-              ? floor2CleanGeometry.polygon
-              : index === 2
-                ? floor3CleanGeometry.polygon
-                : basePolygon
-        )
-          .length,
+      polygon_points: basePolygon.length,
       inner_wall_count: floorTemplates[index].inner_walls.length,
       door_count: floorTemplates[index].doors.length,
       window_count: floorTemplates[index].windows.length,
-      room_count: floorTemplates[index].rooms.length,
+      room_count: 4,
     },
     debug: {},
     height: floorHeight,
   })
 
-  const floors = [makeFloor(1), makeFloor(0), makeFloor(2)]
+  const floors = [makeFloor(0), makeFloor(1), makeFloor(2)]
 
   return {
     project_id: "demo-local",
@@ -333,9 +232,6 @@ function App() {
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
   const animationRef = useRef(null)
-  const viewerRef = useRef(null)
-  const renderPollingRef = useRef(null)
-  const autoRenderKeyRef = useRef("")
 
   const [project, setProject] = useState(null)
   const [routePath, setRoutePath] = useState(() =>
@@ -352,68 +248,12 @@ function App() {
   const [toasts, setToasts] = useState([])
   const [isDropActive, setIsDropActive] = useState(false)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
-  const [viewerBuildToken, setViewerBuildToken] = useState(0)
-  const [showGeometryDebug, setShowGeometryDebug] = useState(false)
-  const [authToken, setAuthToken] = useState(() => window.localStorage.getItem(AUTH_STORAGE_KEY) || "")
-  const [authUser, setAuthUser] = useState(null)
-  const [authMode, setAuthMode] = useState("login")
-  const [authName, setAuthName] = useState("")
-  const [authEmail, setAuthEmail] = useState("")
-  const [authPassword, setAuthPassword] = useState("")
-  const [authPasswordConfirm, setAuthPasswordConfirm] = useState("")
-  const [authError, setAuthError] = useState("")
-  const [authSuccess, setAuthSuccess] = useState("")
-  const [isAuthLoading, setIsAuthLoading] = useState(false)
-  const [isAuthResolved, setIsAuthResolved] = useState(() => !window.localStorage.getItem(AUTH_STORAGE_KEY))
-  const [userProjects, setUserProjects] = useState([])
-  const [colorPaletteApplied, setColorPaletteApplied] = useState(defaultPalette)
-  const [colorPaletteDraft, setColorPaletteDraft] = useState(defaultPalette)
-  const [renderPreview, setRenderPreview] = useState({
-    status: "idle",
-    renderId: null,
-    imageUrl: "",
-    error: "",
-  })
   const [sidebarSections, setSidebarSections] = useState({
     upload: true,
     settings: true,
     floors: true,
   })
-  const didInitProjectRef = useRef(false)
-  const authGateToastShownRef = useRef(false)
   const localDemoProject = useMemo(() => createLocalDemoProject(floorHeight), [floorHeight])
-  const canEnterApp = canAccessApp(authToken, authUser)
-
-  const authValidation = useMemo(() => {
-    const email = authEmail.trim().toLowerCase()
-    const displayName = authName.trim()
-    const issues = []
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-    if (!emailRegex.test(email)) {
-      issues.push("Please enter a valid email address.")
-    }
-
-    if (authPassword.length < 8) {
-      issues.push("Password must be at least 8 characters.")
-    }
-
-    if (authMode === "register") {
-      if (displayName.length < 2) {
-        issues.push("Display name must be at least 2 characters.")
-      }
-      if (authPassword !== authPasswordConfirm) {
-        issues.push("Password confirmation does not match.")
-      }
-    }
-
-    return {
-      email,
-      displayName,
-      issues,
-      isValid: issues.length === 0,
-    }
-  }, [authEmail, authName, authPassword, authPasswordConfirm, authMode])
 
   const loadingPhases = [
     "Analyzing plan...",
@@ -436,68 +276,7 @@ function App() {
     }, 2600)
   }
 
-  const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {}
-
-  const fetchAuthMe = async (token = authToken) => {
-    if (!token) {
-      setAuthUser(null)
-      return null
-    }
-    const res = await fetch(`${API}/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    if (!res.ok) {
-      setAuthUser(null)
-      return null
-    }
-    const json = await res.json()
-    setAuthUser(json.user || null)
-    return json.user || null
-  }
-
-  const fetchUserProjects = async (token = authToken) => {
-    if (!token) {
-      setUserProjects([])
-      return
-    }
-    const res = await fetch(`${API}/users/me/projects`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    if (!res.ok) {
-      return
-    }
-    const json = await res.json()
-    setUserProjects(json.projects || [])
-  }
-
-  const persistLogin = (token, user) => {
-    setAuthToken(token)
-    setAuthUser(user || null)
-    window.localStorage.setItem(AUTH_STORAGE_KEY, token)
-  }
-
-  const logout = () => {
-    setAuthToken("")
-    setAuthUser(null)
-    setUserProjects([])
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
-  }
-
   const navigateTo = (path) => {
-    if (path === "/app" && !canEnterApp) {
-      setAuthMode("login")
-      setAuthError(AUTH_GATE_OPEN_APP_MESSAGE)
-      if (!authGateToastShownRef.current) {
-        pushToast("Open App icin once hesabiniza giris yapin.", "error")
-        authGateToastShownRef.current = true
-      }
-      path = "/"
-    }
-
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path)
     }
@@ -511,115 +290,11 @@ function App() {
     }))
   }
 
-  const applyPalettePreset = (preset) => {
-    if (preset === "warm") {
-      const next = {
-        walls: "#ddd4c7",
-        slabs: "#d2c0aa",
-        roof: "#bfc5cb",
-        frames: "#2f363e",
-        glass: "#a7bac9",
-        door: "#845535",
-        ground: "#cec5b5",
-      }
-      setColorPaletteDraft(next)
-      setColorPaletteApplied(next)
-      return
-    }
-    if (preset === "modern") {
-      const next = {
-        walls: "#d8d8d4",
-        slabs: "#b5b1a9",
-        roof: "#a5adb5",
-        frames: "#232930",
-        glass: "#8fa8bb",
-        door: "#6e4a35",
-        ground: "#c8c7c2",
-      }
-      setColorPaletteDraft(next)
-      setColorPaletteApplied(next)
-      return
-    }
-    const next = {
-      walls: "#ece4d9",
-      slabs: "#cdb9a2",
-      roof: "#d4d9dd",
-      frames: "#3f4952",
-      glass: "#b4c7d6",
-      door: "#9a6a48",
-      ground: "#d7cfbf",
-    }
-    setColorPaletteDraft(next)
-    setColorPaletteApplied(next)
-  }
-
   useEffect(() => {
     const onPopState = () => setRoutePath(window.location.pathname === "/app" ? "/app" : "/")
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
   }, [])
-
-  useEffect(() => {
-    let isActive = true
-
-    const resolveAuth = async () => {
-      if (!authToken) {
-        if (!isActive) return
-        setAuthUser(null)
-        setUserProjects([])
-        setIsAuthResolved(true)
-        return
-      }
-
-      if (!isActive) return
-      setIsAuthResolved(false)
-
-      const user = await fetchAuthMe(authToken)
-      if (!isActive) return
-
-      if (!user) {
-        window.localStorage.removeItem(AUTH_STORAGE_KEY)
-        setAuthToken("")
-        setAuthUser(null)
-        setUserProjects([])
-        setIsAuthResolved(true)
-        return
-      }
-
-      await fetchUserProjects(authToken)
-      if (!isActive) return
-      setIsAuthResolved(true)
-    }
-
-    resolveAuth()
-    return () => {
-      isActive = false
-    }
-  }, [authToken])
-
-  useEffect(() => {
-    if (canEnterApp) {
-      authGateToastShownRef.current = false
-    }
-  }, [canEnterApp])
-
-  useEffect(() => {
-    if (!isAuthResolved) return
-    if (routePath !== "/app") return
-    if (canEnterApp) return
-
-    setAuthMode("login")
-    setAuthError(AUTH_GATE_ROUTE_MESSAGE)
-    if (!authGateToastShownRef.current) {
-      pushToast("Once hesap olusturup giris yapmaniz gerekiyor.", "error")
-      authGateToastShownRef.current = true
-    }
-
-    if (window.location.pathname !== "/") {
-      window.history.replaceState({}, "", "/")
-    }
-    setRoutePath("/")
-  }, [routePath, canEnterApp, isAuthResolved])
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth)
@@ -641,38 +316,10 @@ function App() {
   }, [isLoading])
 
   useEffect(() => {
-    if (didInitProjectRef.current) return
-    didInitProjectRef.current = true
-
-    const lastProjectId = window.localStorage.getItem(LAST_PROJECT_STORAGE_KEY)
-    if (lastProjectId && lastProjectId !== "demo-local" && lastProjectId !== "demo") {
-      loadProject(lastProjectId)
-      return
-    }
-
     setIsLoading(true)
-    resetRenderPreview()
     applyLocalDemoProject()
     setIsLoading(false)
-  }, [])
-
-  const stopRenderPolling = () => {
-    if (renderPollingRef.current) {
-      window.clearInterval(renderPollingRef.current)
-      renderPollingRef.current = null
-    }
-  }
-
-  const resetRenderPreview = () => {
-    stopRenderPolling()
-    autoRenderKeyRef.current = ""
-    setRenderPreview({
-      status: "idle",
-      renderId: null,
-      imageUrl: "",
-      error: "",
-    })
-  }
+  }, [localDemoProject])
 
   const loadProject = async (id) => {
     setIsLoading(true)
@@ -691,64 +338,22 @@ function App() {
         throw new Error(json?.detail || "Project could not be loaded")
       }
 
-      console.log("[loadProject] backend response", {
-        project_id: json?.project_id || id,
-        floors_length: json?.floors?.length || 0,
-        floor_0_polygon_length: json?.floors?.[0]?.polygon?.length || 0,
-        floor_0_inner_walls_length: json?.floors?.[0]?.inner_walls?.length || 0,
-        floor_0_doors_length: json?.floors?.[0]?.doors?.length || 0,
-        floor_0_windows_length: json?.floors?.[0]?.windows?.length || 0,
-        floor_0_image_url: json?.floors?.[0]?.image_url || null,
-      })
-
       setProject(json)
       setProjectId(id)
-      setActiveFloor((json?.floors?.length || 0) <= 1 ? 0 : "building")
-      if (id && id !== "demo" && id !== "demo-local") {
-        window.localStorage.setItem(LAST_PROJECT_STORAGE_KEY, id)
-      }
-      setRenderPreview((current) => ({
-        ...current,
-        imageUrl: "",
-        error: "",
-      }))
 
       if (typeof json.floor_height === "number") {
         setFloorHeight(json.floor_height)
       }
     } catch (e) {
-      const isNetworkError =
-        String(e?.message || "").toLowerCase().includes("failed to fetch") ||
-        String(e?.message || "").toLowerCase().includes("networkerror")
-
       if (id === "demo" || id === "demo-local") {
         applyLocalDemoProject()
         pushToast("Local demo mode enabled", "success")
-      } else if (isNetworkError) {
-        // Backend is unavailable: fall back to local demo instead of blocking the app.
-        window.localStorage.removeItem(LAST_PROJECT_STORAGE_KEY)
-        applyLocalDemoProject()
-        pushToast("Backend offline, local demo opened", "error")
       } else {
         setError(e.message || "Project could not be loaded")
       }
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const getLocalAuthUsers = () => {
-    try {
-      const raw = window.localStorage.getItem(LOCAL_AUTH_USERS_KEY)
-      const parsed = raw ? JSON.parse(raw) : []
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-
-  const setLocalAuthUsers = (users) => {
-    window.localStorage.setItem(LOCAL_AUTH_USERS_KEY, JSON.stringify(users))
   }
 
   const uploadPlan = async () => {
@@ -773,7 +378,6 @@ function App() {
 
     setIsLoading(true)
     setError("")
-    resetRenderPreview()
 
     try {
       const fd = new FormData()
@@ -782,9 +386,6 @@ function App() {
 
       const res = await fetch(`${API}/projects/upload`, {
         method: "POST",
-        headers: {
-          ...authHeaders,
-        },
         body: fd,
       })
 
@@ -802,106 +403,13 @@ function App() {
 
       setProjectId(json.project_id)
       await loadProject(json.project_id)
-      await fetchUserProjects()
+      setActiveFloor("building")
       pushToast("Plan uploaded", "success")
     } catch (e) {
       setError(e.message || "Upload failed")
       pushToast(e.message || "Upload failed", "error")
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const submitAuth = async () => {
-    setIsAuthLoading(true)
-    setAuthError("")
-    setAuthSuccess("")
-    try {
-      if (!authValidation.isValid) {
-        throw new Error(authValidation.issues[0] || "Please check the form fields.")
-      }
-
-      const endpoint = authMode === "register" ? "/auth/register" : "/auth/login"
-      const payload = {
-        email: authValidation.email,
-        password: authPassword,
-      }
-      if (authMode === "register") {
-        payload.display_name = authValidation.displayName
-      }
-      const res = await fetch(`${API}${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        throw new Error(json?.detail || "Authentication failed")
-      }
-
-      persistLogin(json.token, json.user)
-      await fetchUserProjects(json.token)
-      setAuthPassword("")
-      setAuthPasswordConfirm("")
-      setAuthError("")
-
-      if (authMode === "register") {
-        setAuthSuccess("Account created successfully. Redirecting to the app...")
-        pushToast("Account created and signed in", "success")
-      } else {
-        setAuthSuccess("Signed in successfully. Redirecting to the app...")
-        pushToast("Signed in", "success")
-      }
-      navigateTo("/app")
-    } catch (e) {
-      const msg = String(e?.message || "")
-      if (msg.toLowerCase().includes("failed to fetch")) {
-        // Presentation-safe fallback: auth still works in local mode when backend is down.
-        const users = getLocalAuthUsers()
-        if (authMode === "register") {
-          const exists = users.find((u) => u.email === authValidation.email)
-          if (exists) {
-            setAuthError("This email is already registered in local mode.")
-          } else {
-            const user = {
-              id: Date.now(),
-              email: authValidation.email,
-              display_name: authValidation.displayName || "User",
-              password: authPassword,
-            }
-            users.push(user)
-            setLocalAuthUsers(users)
-            persistLogin(`local-${user.id}`, {
-              id: user.id,
-              email: user.email,
-              display_name: user.display_name,
-            })
-            setAuthSuccess("Local account created. Redirecting to the app...")
-            pushToast("Signed in (local mode)", "success")
-            navigateTo("/app")
-          }
-        } else {
-          const match = users.find((u) => u.email === authValidation.email && u.password === authPassword)
-          if (!match) {
-            setAuthError("Backend offline and no matching local account found.")
-          } else {
-            persistLogin(`local-${match.id}`, {
-              id: match.id,
-              email: match.email,
-              display_name: match.display_name || "User",
-            })
-            setAuthSuccess("Signed in (local mode). Redirecting to the app...")
-            pushToast("Signed in (local mode)", "success")
-            navigateTo("/app")
-          }
-        }
-      } else {
-        setAuthError(msg || "Authentication failed")
-      }
-    } finally {
-      setIsAuthLoading(false)
     }
   }
 
@@ -916,212 +424,58 @@ function App() {
     setError("")
     setSelectedFloorCount(3)
     setActiveFloor("building")
-    resetRenderPreview()
-    window.localStorage.removeItem(LAST_PROJECT_STORAGE_KEY)
     applyLocalDemoProject()
     pushToast("Returned to demo project", "success")
   }
 
-  const startRenderPolling = (renderId) => {
-    stopRenderPolling()
-
-    renderPollingRef.current = window.setInterval(async () => {
-      try {
-        const response = await fetch(`${API}/render-status/${renderId}`)
-        const json = await response.json()
-
-        if (!response.ok) {
-          throw new Error(json?.detail || "Render status could not be loaded")
-        }
-
-        if (json.status === "done") {
-          stopRenderPolling()
-          setRenderPreview({
-            status: "done",
-            renderId,
-            imageUrl: `${API}${json.image_url}`,
-            error: "",
-          })
-          pushToast("Architectural render is ready", "success")
-          return
-        }
-
-        if (json.status === "failed") {
-          stopRenderPolling()
-          setRenderPreview({
-            status: "error",
-            renderId,
-            imageUrl: "",
-            error: json.error || "Render failed",
-          })
-          pushToast("Architectural render failed", "error")
-        }
-      } catch (pollError) {
-        stopRenderPolling()
-        setRenderPreview({
-          status: "error",
-          renderId,
-          imageUrl: "",
-          error: pollError.message || "Render polling failed",
-        })
-      }
-    }, 2500)
-  }
-
-  const triggerArchitecturalRender = async () => {
-    if (!viewerRef.current || !project?.project_id) return
-    const renderKey = `${project.project_id}:${floorHeight}`
-    if (autoRenderKeyRef.current === renderKey) return
-    autoRenderKeyRef.current = renderKey
-
-    setRenderPreview({
-      status: "loading",
-      renderId: null,
-      imageUrl: "",
-      error: "",
-    })
-
-    try {
-      const exportPromise = viewerRef.current.exportGlbBlob(
-        `${project.project_id || "plan2mass"}-model`
-      )
-      const exportTimeoutPromise = new Promise((_, reject) => {
-        window.setTimeout(() => {
-          reject(new Error("3D model export timed out before render could start"))
-        }, 15000)
-      })
-      const { blob, filename } = await Promise.race([exportPromise, exportTimeoutPromise])
-
-      const formData = new FormData()
-      formData.append("file", blob, filename || `${project.project_id}-model.glb`)
-      formData.append("project_id", project.project_id)
-
-      const response = await fetch(`${API}/generate-render`, {
-        method: "POST",
-        body: formData,
-      })
-      const json = await response.json()
-
-      if (!response.ok) {
-        throw new Error(json?.detail || "Architectural render could not be started")
-      }
-
-      setRenderPreview({
-        status: "loading",
-        renderId: json.render_id,
-        imageUrl: "",
-        error: "",
-      })
-      startRenderPolling(json.render_id)
-    } catch (renderError) {
-      console.error("Architectural render start error:", renderError)
-      setRenderPreview({
-        status: "error",
-        renderId: null,
-        imageUrl: "",
-        error: renderError.message || "Architectural render could not be created",
-      })
-    }
-  }
-
   const downloadModel = () => {
-    if (!viewerRef.current) return
+    if (!modelRef.current) return
 
-    viewerRef.current
-      .exportGlb(`${project?.project_id || "plan2mass"}-model`)
-      .then(() => {
-        pushToast("3D model exported as GLB", "success")
-      })
-      .catch((err) => {
-        console.error("3D GLB export error:", err)
+    const exporter = new GLTFExporter()
+    exporter.parse(
+      modelRef.current,
+      (result) => {
+        const blob =
+          result instanceof ArrayBuffer
+            ? new Blob([result], { type: "model/gltf-binary" })
+            : new Blob([JSON.stringify(result, null, 2)], { type: "application/json" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download =
+          result instanceof ArrayBuffer
+            ? `${project?.project_id || "plan2mass"}-model.glb`
+            : `${project?.project_id || "plan2mass"}-model.gltf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.setTimeout(() => URL.revokeObjectURL(url), 1200)
+        pushToast(
+          result instanceof ArrayBuffer ? "3D model exported as GLB" : "3D model exported as GLTF",
+          "success"
+        )
+      },
+      (err) => {
+        console.error("GLTF export error:", err)
         pushToast("3D model export failed", "error")
-      })
+      },
+      { binary: true }
+    )
   }
 
   const floors = project?.floors || []
-  const isLocalDemoProject = project?.project_id === "demo-local"
-  const resolvedActiveFloor =
-    activeFloor === "building"
-      ? "building"
-      : isLocalDemoProject
-        ? [1, 0, 2][activeFloor] ?? activeFloor
-        : activeFloor
   const activeFloorData =
-    resolvedActiveFloor === "building"
-      ? floors[0] || null
-      : floors[resolvedActiveFloor] || floors[0] || null
+    activeFloor === "building" ? floors[0] || null : floors[activeFloor] || floors[0] || null
 
   const geometryMeta = useMemo(() => {
     return buildProjectGeometryMeta(project, TARGET_MODEL_SIZE)
   }, [project])
-  const viewerProject = useMemo(() => {
-    if (!project) return project
-    if (project.project_id !== "demo-local") return project
-    if (activeFloor !== "building") return project
-
-    return {
-      ...project,
-      floors: [...(project.floors || [])].sort((a, b) => (a?.floor_index || 0) - (b?.floor_index || 0)),
-    }
-  }, [project, activeFloor])
-
-  const activePlanDebug = useMemo(() => {
-    if (!activeFloorData?.polygon?.length) return null
-
-    const graph = buildWallGraph({
-      polygon: activeFloorData.polygon || [],
-      innerWalls: activeFloorData.inner_walls || [],
-    })
-
-    const classified = classifyOpenings({
-      graph,
-      doors: activeFloorData.doors || [],
-      windows: activeFloorData.windows || [],
-      doorWidthPx: DOOR_OPENING_WIDTH_PX,
-      windowWidthPx: WINDOW_OPENING_WIDTH_PX,
-    })
-
-    const { matched } = matchOpeningsToWalls({
-      graph,
-      openings: classified,
-    })
-
-    const points = []
-    ;(activeFloorData.polygon || []).forEach(([x, y]) => points.push({ x, y }))
-    graph.walls.forEach((wall) => {
-      points.push({ x: wall.line[0], y: wall.line[1] })
-      points.push({ x: wall.line[2], y: wall.line[3] })
-    })
-    matched.forEach((opening) => points.push(opening.point))
-
-    if (!points.length) return null
-
-    const minX = Math.min(...points.map((p) => p.x))
-    const maxX = Math.max(...points.map((p) => p.x))
-    const minY = Math.min(...points.map((p) => p.y))
-    const maxY = Math.max(...points.map((p) => p.y))
-    const pad = 24
-    const width = Math.max(1, maxX - minX)
-    const height = Math.max(1, maxY - minY)
-
-    const mapPoint = (x, y) => ({
-      x: ((x - minX) / width) * (1000 - pad * 2) + pad,
-      y: ((y - minY) / height) * (540 - pad * 2) + pad,
-    })
-
-    return {
-      graph,
-      matched,
-      mapPoint,
-      viewBox: "0 0 1000 540",
-    }
-  }, [activeFloorData])
 
   const currentPlanImage = useMemo(() => {
     if (!project?.floors?.length) return null
     if (activeFloor === "building") return project.floors[0]?.image_url || null
-    return project.floors[resolvedActiveFloor]?.image_url || project.floors[0]?.image_url || null
-  }, [project, activeFloor, resolvedActiveFloor])
+    return project.floors[activeFloor]?.image_url || project.floors[0]?.image_url || null
+  }, [project, activeFloor])
 
   const selectedPdfCount = files.filter((file) => file.name.toLowerCase().endsWith(".pdf")).length
   const selectedImageCount = files.length - selectedPdfCount
@@ -1145,10 +499,6 @@ function App() {
     return buildLocalPlanSvgDataUrl(activeFloorData)
   }, [activeFloorData])
 
-  const landingPlanPreviewImage = useMemo(() => {
-    return localDemoProject.floors?.[0]?.image_url || null
-  }, [localDemoProject])
-
   const currentSummary = activeFloor === "building"
     ? project?.summary || {}
     : activeFloorData?.summary || {}
@@ -1156,18 +506,6 @@ function App() {
   const isMediumViewport = viewportWidth < 1360
   const isNarrowViewport = viewportWidth < 1080
   const isLandingCompact = viewportWidth < 1180
-  const debugPanelData = {
-    apiBaseUrl: API,
-    projectId: projectId || project?.project_id || null,
-    floorsLength: floors.length,
-    activeFloor,
-    floor0PolygonLength: floors?.[0]?.polygon?.length || 0,
-    floor0InnerWallsLength: floors?.[0]?.inner_walls?.length || 0,
-    floor0DoorsLength: floors?.[0]?.doors?.length || 0,
-    floor0WindowsLength: floors?.[0]?.windows?.length || 0,
-    floor0HasImageUrl: Boolean(floors?.[0]?.image_url),
-    hasGeometryMeta: Boolean(geometryMeta),
-  }
 
   const analysisSteps = [
     { label: "Polygon detected", value: currentSummary.polygon_points ?? project?.floor_count ?? 0 },
@@ -1191,11 +529,17 @@ function App() {
   }
 
   const downloadScreenshot = () => {
+    const renderer = rendererRef.current
+    const scene = sceneRef.current
+    const camera = cameraRef.current
+    if (!renderer || !scene || !camera) return
+
+    renderer.render(scene, camera)
+
     try {
-      if (!viewerRef.current) return
-      const dataUrl = viewerRef.current.screenshot()
+      const dataURL = renderer.domElement.toDataURL("image/png")
       const link = document.createElement("a")
-      link.href = dataUrl
+      link.href = dataURL
       link.download = `${project?.project_id || "plan2mass"}-screenshot.png`
       document.body.appendChild(link)
       link.click()
@@ -1229,71 +573,132 @@ function App() {
   useEffect(() => {
     if (!canvasRef.current || !project || !geometryMeta) return
 
-    let viewer = null
+    const canvas = canvasRef.current
+    let renderer = null
+    let scene = null
+    let camera = null
+    let controls = null
+    let onResize = null
 
     try {
-      console.log("[App->createBabylonViewer] input", {
-        activeFloor,
-        resolvedActiveFloor,
-        hasProject: Boolean(project),
-        hasGeometryMeta: Boolean(geometryMeta),
-        floorsLength: floors.length,
-        currentFloorPolygonLength: activeFloorData?.polygon?.length || 0,
-        currentFloorInnerWallsLength: activeFloorData?.inner_walls?.length || 0,
-        currentFloorDoorsLength: activeFloorData?.doors?.length || 0,
-        currentFloorWindowsLength: activeFloorData?.windows?.length || 0,
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        preserveDrawingBuffer: true,
+        alpha: false,
+        powerPreference: "high-performance",
       })
+      rendererRef.current = renderer
+      renderer.shadowMap.enabled = true
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      renderer.outputColorSpace = THREE.SRGBColorSpace
+      renderer.toneMapping = THREE.ACESFilmicToneMapping
+      renderer.toneMappingExposure = activeFloor === "building" ? 0.96 : 1.0
+      renderer.physicallyCorrectLights = true
 
-      viewer = createBabylonViewer({
-        canvas: canvasRef.current,
-        project: viewerProject,
-        geometryMeta,
-        activeFloor: resolvedActiveFloor,
-        floorHeight,
-        visualOverrides: colorPaletteApplied,
-        debugOptions: {
-          enabled: showGeometryDebug,
-          logTopology: true,
-        },
-      })
+      scene = new THREE.Scene()
+      sceneRef.current = scene
+      scene.background = new THREE.Color(activeFloor === "building" ? "#e8edf2" : "#edf2f5")
+      scene.fog = new THREE.Fog(activeFloor === "building" ? "#e9ecef" : "#edf2f5", 120, 260)
 
-      viewerRef.current = viewer
-      rendererRef.current = viewer.engine
-      sceneRef.current = viewer.scene
-      cameraRef.current = viewer.camera
-      controlsRef.current = null
-      modelRef.current = viewer.root
-      setViewerBuildToken(Date.now())
-      setError("")
+      camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300)
+      cameraRef.current = camera
+      camera.position.set(22, 16, 22)
+
+      controls = new OrbitControls(camera, renderer.domElement)
+      controlsRef.current = controls
+      controls.enableDamping = true
+      controls.dampingFactor = 0.06
+      controls.target.set(0, 2.2, 0)
+      controls.minDistance = 6
+      controls.maxDistance = 90
+      controls.maxPolarAngle = Math.PI / 2.02
+      controls.autoRotate = activeFloor === "building"
+      controls.autoRotateSpeed = 0.55
+
+      setupArchitecturalScene(scene, { activeFloor })
+
+      const modelGroup = buildProjectGroup(project, geometryMeta, activeFloor, floorHeight)
+      modelRef.current = modelGroup
+      scene.add(modelGroup)
+
+      const fitCamera = () => {
+        const rect = canvas.getBoundingClientRect()
+        const width = Math.max(300, Math.floor(rect.width))
+        const height = Math.max(420, Math.floor(rect.height))
+
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+        renderer.setSize(width, height, false)
+
+        camera.aspect = width / height
+        camera.updateProjectionMatrix()
+
+        if (activeFloor === "building") {
+          camera.position.set(13.4, 6.8, 12.2)
+          controls.target.set(0, project.floors.length * floorHeight * 0.26, 0.2)
+        } else {
+          camera.position.set(16, 11, 16)
+          controls.target.set(0, 2.35, 0)
+        }
+
+        camera.lookAt(controls.target)
+        controls.autoRotate = activeFloor === "building"
+        controls.update()
+      }
+
+      fitCamera()
+
+      onResize = () => fitCamera()
+      window.addEventListener("resize", onResize)
+
+      const animate = () => {
+        animationRef.current = requestAnimationFrame(animate)
+        controls.update()
+        renderer.render(scene, camera)
+      }
+
+      animate()
     } catch (sceneError) {
-      console.error("Babylon scene init error:", sceneError)
+      console.error("Three scene init error:", sceneError)
       setError(sceneError?.message || "3D scene could not be created")
+
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+
+      if (controls) controls.dispose()
+      if (scene) disposeScene(scene)
+      if (renderer) renderer.dispose()
+
+      rendererRef.current = null
+      sceneRef.current = null
+      cameraRef.current = null
+      controlsRef.current = null
+      modelRef.current = null
+
+      return
     }
 
     return () => {
-      disposeBabylonViewer(viewer)
-      viewerRef.current = null
+      if (onResize) {
+        window.removeEventListener("resize", onResize)
+      }
+
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+
+      if (controls) controls.dispose()
+      if (scene) disposeScene(scene)
+      if (renderer) renderer.dispose()
+
       rendererRef.current = null
       sceneRef.current = null
       cameraRef.current = null
       controlsRef.current = null
       modelRef.current = null
     }
-  }, [project, viewerProject, geometryMeta, activeFloor, resolvedActiveFloor, floorHeight, showGeometryDebug, colorPaletteApplied])
-
-  useEffect(() => {
-    if (activeFloor !== "building") return
-    if (!project?.project_id) return
-    if (!viewerBuildToken) return
-    triggerArchitecturalRender()
-  }, [viewerBuildToken, activeFloor, project?.project_id, floorHeight])
-
-
-  useEffect(() => {
-    return () => {
-      stopRenderPolling()
-    }
-  }, [])
+  }, [project, geometryMeta, activeFloor, floorHeight])
 
   if (routePath !== "/app") {
     return (
@@ -1306,7 +711,7 @@ function App() {
               <div style={brandStyle}>Plan2Mass</div>
               <div style={brandSubStyle}>2D Architectural Plan to Intelligent 3D Building</div>
             </div>
-            <button style={getProtectedButtonStyle(buttonStyleSecondary, canEnterApp)} onClick={() => navigateTo("/app")} disabled={!canEnterApp}>
+            <button style={buttonStyleSecondary} onClick={() => navigateTo("/app")}>
               ✦ Open App
             </button>
           </div>
@@ -1320,92 +725,12 @@ function App() {
                 with room separation, wall extraction, and immersive building previews.
               </p>
               <div style={landingActionRowStyle}>
-                <button style={getProtectedButtonStyle(buttonStylePrimary, canEnterApp)} onClick={() => navigateTo("/app")} disabled={!canEnterApp}>
+                <button style={buttonStylePrimary} onClick={() => navigateTo("/app")}>
                   ✦ Try Demo
                 </button>
-                <button style={getProtectedButtonStyle(buttonStyleSecondary, canEnterApp)} onClick={() => navigateTo("/app")} disabled={!canEnterApp}>
+                <button style={buttonStyleSecondary} onClick={() => navigateTo("/app")}>
                   ⤴ Upload Plan
                 </button>
-              </div>
-
-              <div style={{ ...landingSplitCardStyle, marginTop: 16, padding: 16, borderRadius: 18 }}>
-                <div style={landingInfoTitleStyle}>{authMode === "register" ? "Create account" : "Sign in"}</div>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {authMode === "register" ? (
-                    <input
-                      value={authName}
-                      onChange={(e) => {
-                        setAuthName(e.target.value)
-                        if (authError) setAuthError("")
-                      }}
-                      placeholder="Display name"
-                      style={authInputStyle}
-                    />
-                  ) : null}
-                  <input
-                    value={authEmail}
-                    onChange={(e) => {
-                      setAuthEmail(e.target.value)
-                      if (authError) setAuthError("")
-                    }}
-                    placeholder="Email"
-                    type="email"
-                    style={authInputStyle}
-                  />
-                  <input
-                    value={authPassword}
-                    onChange={(e) => {
-                      setAuthPassword(e.target.value)
-                      if (authError) setAuthError("")
-                    }}
-                    placeholder="Password"
-                    type="password"
-                    style={authInputStyle}
-                  />
-                  {authMode === "register" ? (
-                    <input
-                      value={authPasswordConfirm}
-                      onChange={(e) => {
-                        setAuthPasswordConfirm(e.target.value)
-                        if (authError) setAuthError("")
-                      }}
-                      placeholder="Confirm password"
-                      type="password"
-                      style={authInputStyle}
-                    />
-                  ) : null}
-                  <div style={{ ...helperTextStyle, marginTop: 0 }}>
-                    {authMode === "register"
-                      ? "Create an account to save your projects and continue from any session."
-                      : "Sign in to keep project history and secure model access."}
-                  </div>
-                  {!authValidation.isValid ? (
-                    <div style={{ ...helperTextStyle, color: "#ffd9a8", marginTop: 0 }}>
-                      {authValidation.issues[0]}
-                    </div>
-                  ) : null}
-                  {authError ? <div style={{ ...helperTextStyle, color: "#ffb4b4" }}>{authError}</div> : null}
-                  {authSuccess ? <div style={{ ...helperTextStyle, color: "#b7ffd2" }}>{authSuccess}</div> : null}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      style={buttonStylePrimary}
-                      onClick={submitAuth}
-                      disabled={isAuthLoading || !authValidation.isValid}
-                    >
-                      {isAuthLoading ? "Please wait..." : authMode === "register" ? "Register" : "Login"}
-                    </button>
-                    <button
-                      style={buttonStyleSecondary}
-                      onClick={() => {
-                        setAuthError("")
-                        setAuthSuccess("")
-                        setAuthMode((m) => (m === "register" ? "login" : "register"))
-                      }}
-                    >
-                      {authMode === "register" ? "Have account" : "Create account"}
-                    </button>
-                  </div>
-                </div>
               </div>
 
               <div style={featureStripStyle}>
@@ -1421,6 +746,35 @@ function App() {
               </div>
             </div>
 
+            <div style={landingPreviewCardStyle}>
+              <div style={landingPreviewBadgeStyle}>Live Building Preview</div>
+              <div style={landingPreviewFrameStyle}>
+                <img
+                  src="/demo/floor_1.png"
+                  alt="Plan preview"
+                  style={landingPlanPreviewStyle}
+                />
+                <div style={landingPreviewMockStyle}>
+                  <div style={landingMockHeaderStyle}>3D Architectural Output</div>
+                  <div style={landingMockStageStyle}>
+                    <div style={landingMockBuildingStyle}>
+                      <div style={landingMockRoofStyle} />
+                      <div style={landingMockWindowRowStyle}>
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                      <div style={landingMockWindowRowStyle}>
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                      <div style={landingMockDoorStyle} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div style={landingSectionStyle}>
@@ -1444,12 +798,18 @@ function App() {
             <div style={landingSplitCardStyle}>
               <div style={panelEyebrowStyle}>Before</div>
               <div style={landingInfoTitleStyle}>2D Architectural Plan</div>
-              <img src={landingPlanPreviewImage || "/landing/plan-2d-sample.svg"} alt="2D plan" style={landingBeforeAfterImageStyle} />
+              <img src="/demo/floor_2.png" alt="2D plan" style={landingBeforeAfterImageStyle} />
             </div>
             <div style={landingSplitCardStyle}>
               <div style={panelEyebrowStyle}>After</div>
               <div style={landingInfoTitleStyle}>Interactive 3D Building</div>
-              <img src="/landing/demo-local3d.png" alt="3D building" style={landingBeforeAfterImageStyle} />
+              <div style={landingAfterMockStyle}>
+                <div style={landingAfterBuildingStyle}>
+                  <div />
+                  <div />
+                  <div />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1460,7 +820,7 @@ function App() {
                 Explore the live application and turn floor plans into presentation-ready 3D building views.
               </div>
             </div>
-            <button style={getProtectedButtonStyle(buttonStylePrimary, canEnterApp)} onClick={() => navigateTo("/app")} disabled={!canEnterApp}>
+            <button style={buttonStylePrimary} onClick={() => navigateTo("/app")}>
               → Go To App
             </button>
           </div>
@@ -1507,20 +867,6 @@ function App() {
           ))}
         </div>
 
-        <div style={devDebugPanelStyle}>
-          <div style={devDebugPanelTitleStyle}>Debug</div>
-          <div style={devDebugPanelTextStyle}>API: {debugPanelData.apiBaseUrl}</div>
-          <div style={devDebugPanelTextStyle}>project_id: {String(debugPanelData.projectId)}</div>
-          <div style={devDebugPanelTextStyle}>floors: {debugPanelData.floorsLength}</div>
-          <div style={devDebugPanelTextStyle}>activeFloor: {String(debugPanelData.activeFloor)}</div>
-          <div style={devDebugPanelTextStyle}>floor0 polygon: {debugPanelData.floor0PolygonLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 inner_walls: {debugPanelData.floor0InnerWallsLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 doors: {debugPanelData.floor0DoorsLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 windows: {debugPanelData.floor0WindowsLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 image_url: {debugPanelData.floor0HasImageUrl ? "yes" : "no"}</div>
-          <div style={devDebugPanelTextStyle}>geometryMeta: {debugPanelData.hasGeometryMeta ? "yes" : "no"}</div>
-        </div>
-
         <div style={{ ...topBarStyle, ...(isNarrowViewport ? topBarCompactStyle : {}) }}>
           <div>
             <div style={brandStyle}>Plan2Mass</div>
@@ -1535,23 +881,11 @@ function App() {
             </div>
 
             <div style={profileCardStyle}>
-              <div style={profileAvatarStyle}>
-                {(authUser?.display_name || authUser?.email || "GU")
-                  .split(" ")
-                  .map((part) => part[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase()}
-              </div>
+              <div style={profileAvatarStyle}>BC</div>
               <div>
                 <div style={profileLabelStyle}>User</div>
-                <div style={profileNameStyle}>{authUser?.display_name || authUser?.email || "Guest User"}</div>
+                <div style={profileNameStyle}>Bengu Can</div>
               </div>
-              {authUser ? (
-                <button style={{ ...buttonStyleSecondary, padding: "8px 10px" }} onClick={logout}>
-                  Logout
-                </button>
-              ) : null}
             </div>
           </div>
         </div>
@@ -1746,87 +1080,8 @@ function App() {
                       Building
                     </button>
                   </div>
-                  {activeFloor === "building" ? (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={inputLabelStyle}>Building mode</div>
-                      <div style={tabGridStyle}>
-                        <button
-                          style={{
-                            ...tabButtonStyle,
-                            ...activeTabButtonStyle,
-                          }}
-                        >
-                          Normal
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
-            </div>
-            <div style={controlSectionStyle}>
-              <div style={inputLabelStyle}>Color palette</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                <button style={{ ...tabButtonStyle, ...inactiveTabButtonStyle }} onClick={() => applyPalettePreset("warm")}>Warm</button>
-                <button style={{ ...tabButtonStyle, ...inactiveTabButtonStyle }} onClick={() => applyPalettePreset("modern")}>Modern</button>
-                <button style={{ ...tabButtonStyle, ...inactiveTabButtonStyle }} onClick={() => applyPalettePreset("light")}>Light</button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {[
-                  ["Walls", "walls"],
-                  ["Slabs", "slabs"],
-                  ["Roof", "roof"],
-                  ["Frames", "frames"],
-                  ["Glass", "glass"],
-                  ["Door", "door"],
-                  ["Ground", "ground"],
-                ].map(([label, key]) => (
-                  <label key={key} style={{ display: "grid", gap: 4, color: "#d7e4eb", fontSize: 12 }}>
-                    <span>{label}</span>
-                    <input
-                      type="color"
-                      value={colorPaletteDraft[key]}
-                      onChange={(event) =>
-                        setColorPaletteDraft((current) => ({
-                          ...current,
-                          [key]: event.target.value,
-                        }))
-                      }
-                      style={{
-                        width: "100%",
-                        height: 34,
-                        borderRadius: 8,
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "transparent",
-                        cursor: "pointer",
-                      }}
-                    />
-                  </label>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <button
-                  style={{ ...tabButtonStyle, ...activeTabButtonStyle }}
-                  onClick={() => setColorPaletteApplied(colorPaletteDraft)}
-                >
-                  Apply
-                </button>
-                <button
-                  style={{ ...tabButtonStyle, ...inactiveTabButtonStyle }}
-                  onClick={() => setColorPaletteDraft(colorPaletteApplied)}
-                >
-                  Revert
-                </button>
-                <button
-                  style={{ ...tabButtonStyle, ...inactiveTabButtonStyle }}
-                  onClick={() => {
-                    setColorPaletteDraft(defaultPalette)
-                    setColorPaletteApplied(defaultPalette)
-                  }}
-                >
-                  Reset
-                </button>
-              </div>
             </div>
           </div>
 
@@ -1845,60 +1100,21 @@ function App() {
                 </div>
               </div>
               <div style={panelBodyStyle}>
-                <div style={planStageStyle}>
-                  {currentPlanImage ? (
-                    <img
-                      src={
-                        currentPlanImage.startsWith("data:") || currentPlanImage.startsWith("/demo/")
-                          ? currentPlanImage
-                          : `${API}${currentPlanImage}`
-                      }
-                      alt="2D plan"
-                      style={planImageStyle}
-                    />
-                  ) : localPlanImage ? (
-                    <img src={localPlanImage} alt="2D plan" style={planImageStyle} />
-                  ) : (
-                    <div style={emptyPanelStyle}>Plan image not available</div>
-                  )}
-
-                  {showGeometryDebug && activePlanDebug ? (
-                    <svg viewBox={activePlanDebug.viewBox} style={planOverlayStyle}>
-                      {activePlanDebug.graph.walls.map((wall) => {
-                        const a = activePlanDebug.mapPoint(wall.line[0], wall.line[1])
-                        const b = activePlanDebug.mapPoint(wall.line[2], wall.line[3])
-                        return (
-                          <line
-                            key={`dbg-wall-${wall.id}`}
-                            x1={a.x}
-                            y1={a.y}
-                            x2={b.x}
-                            y2={b.y}
-                            stroke={wall.kind === "outer" ? "#8bd5ff" : "#ffd479"}
-                            strokeWidth={wall.kind === "outer" ? 5 : 3}
-                            strokeLinecap="round"
-                            opacity={0.95}
-                          />
-                        )
-                      })}
-
-                      {activePlanDebug.matched.map((opening) => {
-                        const p = activePlanDebug.mapPoint(opening.point.x, opening.point.y)
-                        return (
-                          <circle
-                            key={`dbg-opening-${opening.id}`}
-                            cx={p.x}
-                            cy={p.y}
-                            r={opening.type === "door" ? 7 : 6}
-                            fill={opening.type === "door" ? "#ff7d7d" : "#8cffbf"}
-                            stroke="#0f1720"
-                            strokeWidth={2}
-                          />
-                        )
-                      })}
-                    </svg>
-                  ) : null}
-                </div>
+                {currentPlanImage ? (
+                  <img
+                    src={
+                      currentPlanImage.startsWith("data:") || currentPlanImage.startsWith("/demo/")
+                        ? currentPlanImage
+                        : `${API}${currentPlanImage}`
+                    }
+                    alt="2D plan"
+                    style={planImageStyle}
+                  />
+                ) : localPlanImage ? (
+                  <img src={localPlanImage} alt="2D plan" style={planImageStyle} />
+                ) : (
+                  <div style={emptyPanelStyle}>Plan image not available</div>
+                )}
               </div>
             </div>
 
@@ -1935,12 +1151,6 @@ function App() {
                 <button style={buttonStyleSecondary} onClick={downloadScreenshot}>⌁ Save Screenshot</button>
                 <button style={buttonStyleGhost} onClick={downloadModel}>⬒ Download GLB</button>
                 <button style={buttonStyleSecondary} onClick={downloadJson}>⎘ Download JSON</button>
-                <button
-                  style={showGeometryDebug ? buttonStyleGhost : buttonStyleSecondary}
-                  onClick={() => setShowGeometryDebug((value) => !value)}
-                >
-                  {showGeometryDebug ? "Debug: ON" : "Debug: OFF"}
-                </button>
               </div>
             </div>
 
@@ -1950,64 +1160,6 @@ function App() {
               <div style={infoTextStyle}>Floors: {project.floor_count || floors.length}</div>
               <div style={infoTextStyle}>Height: {projectHeight} m</div>
               <div style={infoTextStyle}>Rooms: {project?.summary?.room_count ?? 0}</div>
-            </div>
-
-            <div style={infoPanelStyle}>
-              <div style={infoTitleStyle}>My Model History</div>
-              {!authUser ? (
-                <div style={infoTextStyle}>Sign in to keep and list your project history.</div>
-              ) : userProjects.length === 0 ? (
-                <div style={infoTextStyle}>No saved models yet. Upload a plan to start.</div>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {userProjects.slice(0, 8).map((item) => (
-                    <button
-                      key={`${item.project_id}-${item.created_at}`}
-                      style={{ ...buttonStyleSecondary, textAlign: "left" }}
-                      onClick={() => loadProject(item.project_id)}
-                    >
-                      <div style={{ fontWeight: 700 }}>{item.project_id}</div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        Floors: {item.floor_count} • {new Date(item.created_at).toLocaleString()}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={infoPanelStyle}>
-              <div style={infoTitleStyle}>Architectural Render Preview</div>
-              {renderPreview.status === "loading" ? (
-                <div style={renderPreviewLoadingCardStyle}>
-                  <div style={renderPreviewSkeletonStyle} />
-                  <div style={infoTextStyle}>Generating high-quality architectural render...</div>
-                </div>
-              ) : null}
-              {renderPreview.status === "done" && renderPreview.imageUrl ? (
-                <div style={renderPreviewCardStyle}>
-                  <img
-                    src={renderPreview.imageUrl}
-                    alt="Architectural render"
-                    style={renderPreviewImageStyle}
-                  />
-                  <a
-                    href={renderPreview.imageUrl}
-                    download
-                    style={renderPreviewDownloadStyle}
-                  >
-                    Download Render
-                  </a>
-                </div>
-              ) : null}
-              {renderPreview.status === "error" ? (
-                <div style={errorCardStyle}>{renderPreview.error || "Render failed"}</div>
-              ) : null}
-              {renderPreview.status === "idle" ? (
-                <div style={infoTextStyle}>
-                  Upload a plan to automatically generate a final architectural render preview.
-                </div>
-              ) : null}
             </div>
 
             <div style={statsGridStyle}>
@@ -2101,15 +1253,15 @@ function setupArchitecturalScene(scene, { activeFloor } = {}) {
     )
   }
 
-  const ambient = new THREE.AmbientLight(0xffffff, isBuildingView ? 0.16 : 0.52)
+  const ambient = new THREE.AmbientLight(0xffffff, isBuildingView ? 0.18 : 0.38)
   scene.add(ambient)
 
-  const hemi = new THREE.HemisphereLight(0xf6f8fb, 0xb39a82, isBuildingView ? 1.08 : 1.28)
+  const hemi = new THREE.HemisphereLight(0xf6f8fb, 0xaca08e, isBuildingView ? 0.96 : 1.08)
   hemi.position.set(0, 60, 0)
   scene.add(hemi)
 
-  const sun = new THREE.DirectionalLight(0xffefcf, isBuildingView ? 3.3 : 2.35)
-  sun.position.set(28, 31, 18)
+  const sun = new THREE.DirectionalLight(0xffefcf, isBuildingView ? 2.82 : 1.95)
+  sun.position.set(34, 27, 14)
   sun.castShadow = true
   sun.shadow.mapSize.width = 4096
   sun.shadow.mapSize.height = 4096
@@ -2119,17 +1271,17 @@ function setupArchitecturalScene(scene, { activeFloor } = {}) {
   sun.shadow.camera.right = 56
   sun.shadow.camera.top = 56
   sun.shadow.camera.bottom = -56
-  sun.shadow.radius = 2.2
+  sun.shadow.radius = 3
   sun.shadow.blurSamples = 8
-  sun.shadow.bias = -0.00014
+  sun.shadow.bias = -0.00018
   scene.add(sun)
 
-  const fill = new THREE.DirectionalLight(0xdbe7f1, isBuildingView ? 0.68 : 0.96)
-  fill.position.set(-18, 18, -22)
+  const fill = new THREE.DirectionalLight(0xddebf3, isBuildingView ? 0.46 : 0.72)
+  fill.position.set(-22, 16, -22)
   scene.add(fill)
 
-  const rim = new THREE.DirectionalLight(0xf4d8bb, isBuildingView ? 0.34 : 0.48)
-  rim.position.set(10, 14, 26)
+  const rim = new THREE.DirectionalLight(0xf6e4ca, isBuildingView ? 0.26 : 0.38)
+  rim.position.set(6, 13, 24)
   scene.add(rim)
 
   const skyDome = new THREE.Mesh(
@@ -2146,8 +1298,8 @@ function setupArchitecturalScene(scene, { activeFloor } = {}) {
   const pad = new THREE.Mesh(
     new THREE.BoxGeometry(28, 0.18, 22),
     new THREE.MeshStandardMaterial({
-      color: "#d7d0c5",
-      roughness: 0.9,
+      color: "#cec6bb",
+      roughness: 0.92,
       metalness: 0.0,
     })
   )
@@ -2158,8 +1310,8 @@ function setupArchitecturalScene(scene, { activeFloor } = {}) {
   const padBorder = new THREE.Mesh(
     new THREE.BoxGeometry(29.2, 0.06, 23.2),
     new THREE.MeshStandardMaterial({
-      color: "#c6bcae",
-      roughness: 0.92,
+      color: "#b8afa2",
+      roughness: 0.94,
       metalness: 0.0,
     })
   )
@@ -2185,9 +1337,9 @@ function setupArchitecturalScene(scene, { activeFloor } = {}) {
   const contactShadow = new THREE.Mesh(
     new THREE.CircleGeometry(12.5, 64),
     new THREE.MeshBasicMaterial({
-      color: "#7b746a",
+      color: "#8f877a",
       transparent: true,
-      opacity: isBuildingView ? 0.18 : 0.06,
+      opacity: isBuildingView ? 0.14 : 0.06,
       depthWrite: false,
     })
   )
@@ -2214,23 +1366,11 @@ function disposeScene(scene) {
 }
 
 function buildProjectGeometryMeta(project, targetSize = 22) {
-  if (!project?.floors?.length) {
-    console.warn("GEOMETRY_META_NULL - 3D viewer cannot build")
-    console.log("[buildProjectGeometryMeta] summary", {
-      geometryMetaNull: true,
-      allPointsCount: 0,
-      floorCount: 0,
-      polygonPointCountPerFloor: [],
-      bbox: null,
-    })
-    return null
-  }
+  if (!project?.floors?.length) return null
 
   const allPoints = []
-  const polygonPointCountPerFloor = []
 
   project.floors.forEach((floor) => {
-    polygonPointCountPerFloor.push(floor?.polygon?.length || 0)
     ;(floor.polygon || []).forEach((p) => {
       if (Array.isArray(p) && p.length >= 2) {
         allPoints.push({ x: p[0], y: p[1] })
@@ -2238,41 +1378,24 @@ function buildProjectGeometryMeta(project, targetSize = 22) {
     })
   })
 
-  if (!allPoints.length) {
-    console.warn("GEOMETRY_META_NULL - 3D viewer cannot build")
-    console.log("[buildProjectGeometryMeta] summary", {
-      geometryMetaNull: true,
-      allPointsCount: 0,
-      floorCount: project.floors.length,
-      polygonPointCountPerFloor,
-      bbox: null,
-    })
-    return null
-  }
+  if (!allPoints.length) return null
 
   const minX = Math.min(...allPoints.map((p) => p.x))
   const maxX = Math.max(...allPoints.map((p) => p.x))
   const minY = Math.min(...allPoints.map((p) => p.y))
   const maxY = Math.max(...allPoints.map((p) => p.y))
-  const transform = buildWorldTransform({
-    minX,
-    maxX,
-    minY,
-    maxY,
-    targetSize,
-  })
 
-  console.log("[buildProjectGeometryMeta] summary", {
-    geometryMetaNull: false,
-    allPointsCount: allPoints.length,
-    floorCount: project.floors.length,
-    polygonPointCountPerFloor,
-    bbox: {
-      minX,
-      maxX,
-      minY,
-      maxY,
-    },
+  const width = Math.max(1, maxX - minX)
+  const depth = Math.max(1, maxY - minY)
+  const maxDim = Math.max(width, depth)
+  const scale = targetSize / maxDim
+
+  const centerX = (minX + maxX) / 2
+  const centerY = (minY + maxY) / 2
+
+  const transformPoint = (x, y) => ({
+    x: (x - centerX) * scale,
+    z: -(y - centerY) * scale,
   })
 
   return {
@@ -2280,7 +1403,13 @@ function buildProjectGeometryMeta(project, targetSize = 22) {
     maxX,
     minY,
     maxY,
-    ...transform,
+    width,
+    depth,
+    maxDim,
+    scale,
+    centerX,
+    centerY,
+    transformPoint,
   }
 }
 
@@ -2400,11 +1529,11 @@ function createPlasterTextureSet() {
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  for (let i = 0; i < 1300; i += 1) {
-    const alpha = 0.006 + Math.random() * 0.012
-    const shade = 208 + Math.floor(Math.random() * 16)
+  for (let i = 0; i < 2800; i += 1) {
+    const alpha = 0.018 + Math.random() * 0.05
+    const shade = 198 + Math.floor(Math.random() * 34)
     ctx.fillStyle = `rgba(${shade},${shade - 4},${shade - 10},${alpha})`
-    const size = 1 + Math.random() * 4
+    const size = 2 + Math.random() * 9
     ctx.beginPath()
     ctx.ellipse(
       Math.random() * canvas.width,
@@ -2418,8 +1547,26 @@ function createPlasterTextureSet() {
     ctx.fill()
   }
 
+  for (let i = 0; i < 180; i += 1) {
+    ctx.strokeStyle = `rgba(128,110,92,${0.02 + Math.random() * 0.025})`
+    ctx.lineWidth = 1 + Math.random() * 2
+    ctx.beginPath()
+    const startX = Math.random() * canvas.width
+    const startY = Math.random() * canvas.height
+    ctx.moveTo(startX, startY)
+    ctx.bezierCurveTo(
+      startX + Math.random() * 60,
+      startY + Math.random() * 20,
+      startX + Math.random() * 80,
+      startY - Math.random() * 24,
+      startX + 40 + Math.random() * 120,
+      startY + Math.random() * 12
+    )
+    ctx.stroke()
+  }
+
   const map = textureFromCanvas(canvas, { repeat: [5.5, 5.5] })
-  const normalMap = buildNormalMapFromCanvas(canvas, 1.1)
+  const normalMap = buildNormalMapFromCanvas(canvas, 2.1)
   normalMap.repeat.set(5.5, 5.5)
   const roughnessMap = buildRoughnessMapFromCanvas(canvas, [5.5, 5.5])
   return { map, normalMap, roughnessMap }
@@ -2694,18 +1841,10 @@ function createSkyTexture() {
   const ctx = canvas.getContext("2d")
 
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-  gradient.addColorStop(0, "#7e9fbc")
-  gradient.addColorStop(0.34, "#b7cbdb")
-  gradient.addColorStop(0.62, "#edf1ef")
-  gradient.addColorStop(1, "#f2e6d8")
+  gradient.addColorStop(0, "#c7d9e8")
+  gradient.addColorStop(0.48, "#e9f0f5")
+  gradient.addColorStop(1, "#f7f4ef")
   ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  const sunGlow = ctx.createRadialGradient(canvas.width * 0.72, canvas.height * 0.18, 10, canvas.width * 0.72, canvas.height * 0.18, 180)
-  sunGlow.addColorStop(0, "rgba(255,242,214,0.85)")
-  sunGlow.addColorStop(0.35, "rgba(255,235,200,0.28)")
-  sunGlow.addColorStop(1, "rgba(255,235,200,0)")
-  ctx.fillStyle = sunGlow
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
   for (let i = 0; i < 14; i += 1) {
@@ -2770,8 +1909,8 @@ function getInteriorFloorMaterial(floorIndex) {
       map: woodSet.map,
       normalMap: woodSet.normalMap,
       roughnessMap: woodSet.roughnessMap,
-      color: "#f0dcc2",
-      roughness: 0.48,
+      color: "#eed7bc",
+      roughness: 0.56,
       metalness: 0.02,
     })
   }
@@ -2807,18 +1946,12 @@ function buildProjectGroup(project, geometryMeta, activeFloor, floorHeightMeters
   const metalSet = getDarkMetalTextureSet()
   const woodSet = getWoodAccentTextureSet()
 
-  const outerWallMap = plasterSet.map.clone()
-  const outerWallNormal = plasterSet.normalMap.clone()
-  const outerWallRoughness = plasterSet.roughnessMap.clone()
-  outerWallMap.repeat.set(4, 4)
-  outerWallNormal.repeat.set(4, 4)
-  outerWallRoughness.repeat.set(4, 4)
   const outerWallMaterial = new THREE.MeshStandardMaterial({
-    map: outerWallMap,
-    normalMap: outerWallNormal,
-    roughnessMap: outerWallRoughness,
-    color: "#e7e0d5",
-    roughness: 0.9,
+    map: plasterSet.map,
+    normalMap: plasterSet.normalMap,
+    roughnessMap: plasterSet.roughnessMap,
+    color: "#d7cec1",
+    roughness: 0.88,
     metalness: 0.01,
   })
 
@@ -2826,26 +1959,20 @@ function buildProjectGroup(project, geometryMeta, activeFloor, floorHeightMeters
     map: plasterSet.map.clone(),
     normalMap: plasterSet.normalMap.clone(),
     roughnessMap: plasterSet.roughnessMap.clone(),
-    color: "#efe8de",
-    roughness: 0.92,
+    color: "#cec6bb",
+    roughness: 0.94,
     metalness: 0.01,
   })
   innerWallMaterial.map.repeat.set(4, 4)
   innerWallMaterial.normalMap.repeat.set(4, 4)
   innerWallMaterial.roughnessMap.repeat.set(4, 4)
 
-  const slabMap = concreteSet.map.clone()
-  const slabNormal = concreteSet.normalMap.clone()
-  const slabRoughness = concreteSet.roughnessMap.clone()
-  slabMap.repeat.set(8, 8)
-  slabNormal.repeat.set(8, 8)
-  slabRoughness.repeat.set(8, 8)
   const slabMaterial = new THREE.MeshStandardMaterial({
-    map: slabMap,
-    normalMap: slabNormal,
-    roughnessMap: slabRoughness,
-    color: "#ddd5ca",
-    roughness: 0.9,
+    map: concreteSet.map,
+    normalMap: concreteSet.normalMap,
+    roughnessMap: concreteSet.roughnessMap,
+    color: "#d3cabd",
+    roughness: 0.95,
     metalness: 0.0,
   })
 
@@ -2871,22 +1998,22 @@ function buildProjectGroup(project, geometryMeta, activeFloor, floorHeightMeters
     map: metalSet.map,
     normalMap: metalSet.normalMap,
     roughnessMap: metalSet.roughnessMap,
-    color: "#f2eee7",
-    roughness: 0.42,
-    metalness: 0.18,
+    color: "#f3eee6",
+    roughness: 0.48,
+    metalness: 0.22,
   })
 
   const glassMaterial = new THREE.MeshPhysicalMaterial({
-    color: "#dcebF6",
-    roughness: 0,
+    color: "#bfdced",
+    roughness: 0.1,
     metalness: 0.0,
     transparent: true,
-    opacity: 0.4,
-    transmission: 0.98,
-    thickness: 0.32,
-    ior: 1.5,
-    envMap: sceneHdriTextureCache || sceneSkyTextureCache,
-    envMapIntensity: 1.8,
+    opacity: 0.42,
+    transmission: 0.9,
+    thickness: 0.25,
+    ior: 1.45,
+    envMap: sceneSkyTextureCache,
+    envMapIntensity: 1.0,
   })
 
   const lineMaterial = new THREE.LineBasicMaterial({
@@ -2955,16 +2082,16 @@ function buildProjectGroup(project, geometryMeta, activeFloor, floorHeightMeters
     })
 
     const buildingGlassMaterial = new THREE.MeshPhysicalMaterial({
-      color: "#d8edf8",
-      roughness: 0.03,
+      color: "#b7d1df",
+      roughness: 0.1,
       metalness: 0.0,
       transparent: true,
-      opacity: 0.62,
-      transmission: 0.97,
-      thickness: 0.34,
+      opacity: 0.34,
+      transmission: 0.94,
+      thickness: 0.22,
       ior: 1.46,
       envMap: sceneSkyTextureCache,
-      envMapIntensity: 1.7,
+      envMapIntensity: 1.2,
     })
 
     return buildBuildingExteriorGroup({
@@ -3535,134 +2662,197 @@ function createFacadeArticulation({ envelope, totalHeight, floorHeightMeters, fl
     map: concreteSet.map.clone(),
     normalMap: concreteSet.normalMap.clone(),
     roughnessMap: concreteSet.roughnessMap.clone(),
-    color: "#ded5c8",
-    roughness: 0.82,
+    color: "#ddd2c1",
+    roughness: 0.78,
     metalness: 0.02,
   })
   const trimMat = new THREE.MeshStandardMaterial({
     map: concreteSet.map.clone(),
     normalMap: concreteSet.normalMap.clone(),
     roughnessMap: concreteSet.roughnessMap.clone(),
-    color: "#c8beb1",
-    roughness: 0.88,
+    color: "#726a60",
+    roughness: 0.9,
     metalness: 0.0,
   })
   const shadowMat = new THREE.MeshStandardMaterial({
     map: concreteSet.map.clone(),
     normalMap: concreteSet.normalMap.clone(),
     roughnessMap: concreteSet.roughnessMap.clone(),
-    color: "#b4a697",
-    roughness: 0.94,
+    color: "#8e8270",
+    roughness: 0.96,
     metalness: 0.0,
   })
   const lightTrimMat = new THREE.MeshStandardMaterial({
     map: concreteSet.map.clone(),
     normalMap: concreteSet.normalMap.clone(),
     roughnessMap: concreteSet.roughnessMap.clone(),
-    color: "#f1ece5",
-    roughness: 0.78,
+    color: "#f7f2ea",
+    roughness: 0.8,
     metalness: 0.02,
   })
   const woodMat = new THREE.MeshStandardMaterial({
     map: woodSet.map.clone(),
     normalMap: woodSet.normalMap.clone(),
     roughnessMap: woodSet.roughnessMap.clone(),
-    color: "#6d4a34",
-    roughness: 0.56,
+    color: "#81573a",
+    roughness: 0.68,
     metalness: 0.06,
   })
   const stoneMat = new THREE.MeshStandardMaterial({
     map: stoneSet.map.clone(),
     normalMap: stoneSet.normalMap.clone(),
     roughnessMap: stoneSet.roughnessMap.clone(),
-    color: "#7b746b",
-    roughness: 0.95,
+    color: "#6b645d",
+    roughness: 0.97,
     metalness: 0.0,
+  })
+  const darkBaseMat = new THREE.MeshStandardMaterial({
+    map: metalSet.map.clone(),
+    normalMap: metalSet.normalMap.clone(),
+    roughnessMap: metalSet.roughnessMap.clone(),
+    color: "#262b31",
+    roughness: 0.44,
+    metalness: 0.26,
   })
   const darkMetalMat = new THREE.MeshStandardMaterial({
     map: metalSet.map.clone(),
     normalMap: metalSet.normalMap.clone(),
     roughnessMap: metalSet.roughnessMap.clone(),
-    color: "#413a34",
-    roughness: 0.4,
-    metalness: 0.18,
+    color: "#161b20",
+    roughness: 0.28,
+    metalness: 0.62,
   })
 
   const frontZ = envelope.maxZ + 0.08
   const backZ = envelope.minZ - 0.08
+  const baseBandHeight = 0.34
+  const parapetLift = 0.26
   const faces = geometryMeta ? collectExteriorOpeningsByFace(floors, geometryMeta, envelope) : null
 
-  const basePlinthHeight = 0.54
-  const plinth = new THREE.Mesh(
-    new THREE.BoxGeometry(width + 0.28, basePlinthHeight, depth + 0.28),
+  const frontPlane = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.88, totalHeight - 0.2, 0.04),
+    new THREE.MeshStandardMaterial({
+      map: concreteSet.map.clone(),
+      normalMap: concreteSet.normalMap.clone(),
+      roughnessMap: concreteSet.roughnessMap.clone(),
+      color: "#f3eee6",
+      roughness: 0.78,
+      metalness: 0.0,
+    })
+  )
+  frontPlane.position.set(centerX, totalHeight / 2 + 0.02, frontZ + 0.06)
+  group.add(frontPlane)
+
+  const facadeFrameWidth = Math.min(width * 0.54, width - 1.2)
+  const facadeFrameHeight = totalHeight - 0.7
+  const facadeFrameDepth = 0.12
+  const facadeFrameX = centerX
+  const facadeFrameY = facadeFrameHeight / 2 + 0.22
+  const facadeFrameZ = frontZ + 0.11
+  const frameTop = new THREE.Mesh(
+    new THREE.BoxGeometry(facadeFrameWidth + 0.22, 0.12, facadeFrameDepth),
+    darkMetalMat
+  )
+  frameTop.position.set(facadeFrameX, facadeFrameY + facadeFrameHeight / 2 - 0.02, facadeFrameZ)
+  group.add(frameTop)
+
+  const frameLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, facadeFrameHeight, facadeFrameDepth),
+    darkMetalMat
+  )
+  frameLeft.position.set(facadeFrameX - facadeFrameWidth / 2, facadeFrameY, facadeFrameZ)
+  group.add(frameLeft)
+
+  const frameRight = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, facadeFrameHeight, facadeFrameDepth),
+    darkMetalMat
+  )
+  frameRight.position.set(facadeFrameX + facadeFrameWidth / 2, facadeFrameY, facadeFrameZ)
+  group.add(frameRight)
+
+  const plinthBand = new THREE.Mesh(
+    new THREE.BoxGeometry(width + 0.52, baseBandHeight, depth + 0.52),
+    trimMat
+  )
+  plinthBand.position.set(centerX, baseBandHeight / 2 + 0.04, centerZ)
+  group.add(plinthBand)
+
+  const darkBase = new THREE.Mesh(
+    new THREE.BoxGeometry(width + 0.04, 0.38, 0.12),
+    darkBaseMat
+  )
+  darkBase.position.set(centerX, 0.19, frontZ + 0.03)
+  group.add(darkBase)
+
+  const frontStoneBase = new THREE.Mesh(
+    new THREE.BoxGeometry(Math.max(2.4, width * 0.16), 0.88, 0.08),
     stoneMat
   )
-  plinth.position.set(centerX, basePlinthHeight / 2 + 0.02, centerZ)
-  group.add(plinth)
+  frontStoneBase.position.set(centerX - width * 0.26, 0.44, frontZ + 0.11)
+  group.add(frontStoneBase)
 
-  const frontEntryMass = new THREE.Mesh(
-    new THREE.BoxGeometry(Math.max(2.6, width * 0.22), totalHeight - 0.42, 0.08),
-    accentMat
+  const sideBaseLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 1.08, depth + 0.12),
+    darkBaseMat
   )
-  frontEntryMass.position.set(centerX, totalHeight / 2 + 0.02, frontZ + 0.01)
-  group.add(frontEntryMass)
+  sideBaseLeft.position.set(envelope.minX - 0.02, 0.54, centerZ)
+  group.add(sideBaseLeft)
 
-  const rearSpine = new THREE.Mesh(
-    new THREE.BoxGeometry(Math.max(1.6, width * 0.14), totalHeight - 0.56, 0.06),
-    shadowMat
+  const sideBaseRight = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 1.08, depth + 0.12),
+    darkBaseMat
   )
-  rearSpine.position.set(centerX, totalHeight / 2, backZ - 0.015)
-  group.add(rearSpine)
-
-  const cornerDepth = 0.11
-  const cornerWidth = 0.18
-  ;[
-    [envelope.minX - 0.04, envelope.minZ],
-    [envelope.minX - 0.04, envelope.maxZ],
-    [envelope.maxX + 0.04, envelope.minZ],
-    [envelope.maxX + 0.04, envelope.maxZ],
-  ].forEach(([x, z]) => {
-    const corner = new THREE.Mesh(
-      new THREE.BoxGeometry(cornerWidth, totalHeight + 0.1, cornerDepth),
-      trimMat
-    )
-    corner.position.set(x, totalHeight / 2 + 0.05, z)
-    group.add(corner)
-  })
+  sideBaseRight.position.set(envelope.maxX + 0.02, 0.54, centerZ)
+  group.add(sideBaseRight)
 
   for (let i = 1; i < floors.length; i += 1) {
     const y = i * floorHeightMeters + 0.08
     const frontBelt = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.08, 0.04, 0.1),
+      new THREE.BoxGeometry(width + 0.18, 0.05, 0.08),
       trimMat
     )
     frontBelt.position.set(centerX, y, frontZ + 0.02)
     group.add(frontBelt)
 
     const backBelt = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.04, 0.035, 0.08),
-      shadowMat
+      new THREE.BoxGeometry(width + 0.18, 0.05, 0.08),
+      trimMat
     )
     backBelt.position.set(centerX, y, backZ - 0.02)
     group.add(backBelt)
 
     const leftBelt = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.04, depth + 0.04),
+      new THREE.BoxGeometry(0.08, 0.05, depth + 0.18),
       trimMat
     )
     leftBelt.position.set(envelope.minX - 0.02, y, centerZ)
     group.add(leftBelt)
 
     const rightBelt = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.04, depth + 0.04),
+      new THREE.BoxGeometry(0.08, 0.05, depth + 0.18),
       trimMat
     )
     rightBelt.position.set(envelope.maxX + 0.02, y, centerZ)
     group.add(rightBelt)
   }
 
+  const corners = [
+    [envelope.minX - 0.08, envelope.minZ - 0.08],
+    [envelope.minX - 0.08, envelope.maxZ + 0.08],
+    [envelope.maxX + 0.08, envelope.minZ - 0.08],
+    [envelope.maxX + 0.08, envelope.maxZ + 0.08],
+  ]
+  corners.forEach(([x, z]) => {
+    const pilaster = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, totalHeight + 0.26, 0.16),
+      trimMat
+    )
+    pilaster.position.set(x, totalHeight / 2 + 0.12, z)
+    group.add(pilaster)
+  })
+
   const crown = new THREE.Mesh(
-    new THREE.BoxGeometry(width + 0.22, 0.09, depth + 0.22),
+    new THREE.BoxGeometry(width + 0.16, 0.08, depth + 0.16),
     trimMat
   )
   crown.position.set(centerX, totalHeight + 0.05, centerZ)
@@ -3678,31 +2868,22 @@ function createFacadeArticulation({ envelope, totalHeight, floorHeightMeters, fl
       if (axis === "front" || axis === "back") {
         const z = axis === "front" ? frontZ + depthOffset : backZ - depthOffset
         const surround = new THREE.Mesh(
-          new THREE.BoxGeometry(widthWorld + 0.18, heightWorld + 0.16, 0.08),
+          new THREE.BoxGeometry(widthWorld + 0.22, heightWorld + 0.18, 0.09),
           lightTrimMat
         )
         surround.position.set(opening.world.x, y, z)
         group.add(surround)
 
         const head = new THREE.Mesh(
-          new THREE.BoxGeometry(widthWorld + 0.16, 0.04, 0.12),
+          new THREE.BoxGeometry(widthWorld + 0.24, 0.05, 0.09),
           shadowMat
         )
-        head.position.set(opening.world.x, y + heightWorld / 2 + 0.07, z + (axis === "front" ? 0.015 : -0.015))
+        head.position.set(opening.world.x, y + heightWorld / 2 + 0.08, z + (axis === "front" ? 0.01 : -0.01))
         group.add(head)
-
-        if (opening.type === "window") {
-          const sill = new THREE.Mesh(
-            new THREE.BoxGeometry(widthWorld + 0.12, 0.04, 0.16),
-            trimMat
-          )
-          sill.position.set(opening.world.x, y - heightWorld / 2 - 0.04, z + (axis === "front" ? 0.02 : -0.02))
-          group.add(sill)
-        }
       } else {
         const x = axis === "right" ? envelope.maxX + depthOffset : envelope.minX - depthOffset
         const surround = new THREE.Mesh(
-          new THREE.BoxGeometry(0.08, heightWorld + 0.14, widthWorld + 0.18),
+          new THREE.BoxGeometry(0.09, heightWorld + 0.18, widthWorld + 0.22),
           lightTrimMat
         )
         surround.position.set(x, y, opening.world.z)
@@ -3730,45 +2911,45 @@ function createFacadeArticulation({ envelope, totalHeight, floorHeightMeters, fl
     const entryBayWidth = Math.max(2.8, width * 0.18)
 
     const entryBay = new THREE.Mesh(
-      new THREE.BoxGeometry(entryBayWidth, floorHeightMeters + 0.56, 0.14),
+      new THREE.BoxGeometry(entryBayWidth, floorHeightMeters + 0.74, 0.18),
       accentMat
     )
-    entryBay.position.set(entryWorld.x, floorHeightMeters / 2 + 0.28, frontZ + 0.08)
+    entryBay.position.set(entryWorld.x, floorHeightMeters / 2 + 0.32, frontZ + 0.11)
     group.add(entryBay)
 
     const entryBayInset = new THREE.Mesh(
-      new THREE.BoxGeometry(entryBayWidth - 0.26, floorHeightMeters + 0.04, 0.05),
+      new THREE.BoxGeometry(entryBayWidth - 0.34, floorHeightMeters + 0.14, 0.06),
       shadowMat
     )
-    entryBayInset.position.set(entryWorld.x, floorHeightMeters / 2 + 0.14, frontZ + 0.15)
+    entryBayInset.position.set(entryWorld.x, floorHeightMeters / 2 + 0.18, frontZ + 0.18)
     group.add(entryBayInset)
 
     const woodAccent = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, totalHeight - 1.02, 0.05),
+      new THREE.BoxGeometry(0.22, totalHeight - 0.86, 0.08),
       woodMat
     )
-    woodAccent.position.set(entryWorld.x + entryBayWidth * 0.46, totalHeight / 2 - 0.06, frontZ + 0.09)
+    woodAccent.position.set(entryWorld.x + entryBayWidth * 0.48, totalHeight / 2 - 0.04, frontZ + 0.14)
     group.add(woodAccent)
 
     const stoneAccent = new THREE.Mesh(
-      new THREE.BoxGeometry(Math.max(0.7, entryBayWidth * 0.22), floorHeightMeters + 0.02, 0.06),
+      new THREE.BoxGeometry(Math.max(0.96, entryBayWidth * 0.28), floorHeightMeters + 0.12, 0.08),
       stoneMat
     )
-    stoneAccent.position.set(entryWorld.x - entryBayWidth * 0.48, floorHeightMeters / 2 + 0.04, frontZ + 0.1)
+    stoneAccent.position.set(entryWorld.x - entryBayWidth * 0.48, floorHeightMeters / 2 + 0.08, frontZ + 0.14)
     group.add(stoneAccent)
 
     const entranceCanopyShadow = new THREE.Mesh(
-      new THREE.BoxGeometry(entryBayWidth + 0.08, 0.06, 0.16),
+      new THREE.BoxGeometry(entryBayWidth + 0.26, 0.08, 0.16),
       trimMat
     )
-    entranceCanopyShadow.position.set(entryWorld.x, floorHeightMeters + 0.6, frontZ + 0.18)
+    entranceCanopyShadow.position.set(entryWorld.x, floorHeightMeters + 0.72, frontZ + 0.23)
     group.add(entranceCanopyShadow)
 
     const slimCanopy = new THREE.Mesh(
-      new THREE.BoxGeometry(entryBayWidth + 0.18, 0.04, 0.84),
+      new THREE.BoxGeometry(entryBayWidth + 0.38, 0.05, 1.08),
       darkMetalMat
     )
-    slimCanopy.position.set(entryWorld.x, floorHeightMeters + 0.64, frontZ + 0.42)
+    slimCanopy.position.set(entryWorld.x, floorHeightMeters + 0.78, frontZ + 0.56)
     group.add(slimCanopy)
   }
 
@@ -4739,21 +3920,6 @@ function createWindowGroup({
   glass.receiveShadow = true
   group.add(glass)
 
-  const interiorShadow = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      Math.max(0.08, widthWorld - frameSide * 2 - 0.04),
-      Math.max(0.08, height - frameTopBottom * 2 - 0.04),
-      Math.max(0.02, frameDepth * 0.55)
-    ),
-    new THREE.MeshStandardMaterial({
-      color: "#5d5a56",
-      roughness: 0.96,
-      metalness: 0.0,
-    })
-  )
-  interiorShadow.position.set(0, sillHeight + height / 2, -insetDepth - 0.045)
-  group.add(interiorShadow)
-
   const mullion = new THREE.Mesh(
     new THREE.BoxGeometry(0.035, Math.max(0.24, height - frameTopBottom * 2), frameDepth * 0.92),
     frameMaterial
@@ -4955,21 +4121,6 @@ function createWindowInsert({
   glass.receiveShadow = true
   group.add(glass)
 
-  const interiorShadow = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      Math.max(0.08, widthWorld - frameSide * 2 - 0.04),
-      Math.max(0.08, height - frameTopBottom * 2 - 0.04),
-      Math.max(0.018, paneDepth * 0.9)
-    ),
-    new THREE.MeshStandardMaterial({
-      color: "#605d59",
-      roughness: 0.96,
-      metalness: 0.0,
-    })
-  )
-  interiorShadow.position.set(0, sillHeight + height / 2, -thickness * 0.12)
-  group.add(interiorShadow)
-
   const mullion = new THREE.Mesh(
     new THREE.BoxGeometry(0.03, Math.max(0.2, height - frameTopBottom * 2), frameDepth),
     frameMaterial
@@ -5162,7 +4313,7 @@ const landingTopBarCompactStyle = {
 
 const landingHeroGridStyle = {
   display: "grid",
-  gridTemplateColumns: "1fr",
+  gridTemplateColumns: "minmax(0, 1.1fr) minmax(420px, 0.9fr)",
   gap: 28,
   alignItems: "center",
   marginBottom: 36,
@@ -5267,15 +4418,6 @@ const landingPlanPreviewStyle = {
   borderRadius: 22,
   background: "#ffffff",
   boxShadow: "inset 0 0 0 1px rgba(15,23,32,0.08)",
-}
-
-const landingPreviewRenderStyle = {
-  width: "100%",
-  height: 420,
-  objectFit: "cover",
-  borderRadius: 24,
-  background: "#dce3ea",
-  border: "1px solid rgba(255,255,255,0.16)",
 }
 
 const landingPreviewMockStyle = {
@@ -5739,15 +4881,6 @@ const helperTextStyle = {
   color: "#8ea3b2",
   fontSize: 12,
   lineHeight: 1.55,
-}
-
-const authInputStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#eef6fb",
 }
 
 const validationNoteStyle = {
@@ -6247,47 +5380,6 @@ const viewerActionButtonStyle = {
   fontWeight: 700,
 }
 
-const renderPreviewLoadingCardStyle = {
-  display: "grid",
-  gap: 12,
-}
-
-const renderPreviewSkeletonStyle = {
-  width: "100%",
-  aspectRatio: "16 / 10",
-  borderRadius: 18,
-  background:
-    "linear-gradient(120deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.16) 42%, rgba(255,255,255,0.06) 100%)",
-  backgroundSize: "200% 100%",
-  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
-}
-
-const renderPreviewCardStyle = {
-  display: "grid",
-  gap: 12,
-}
-
-const renderPreviewImageStyle = {
-  width: "100%",
-  display: "block",
-  borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 20px 48px rgba(0,0,0,0.22)",
-}
-
-const renderPreviewDownloadStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "10px 14px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.05)",
-  color: "#eef5f9",
-  textDecoration: "none",
-  fontWeight: 700,
-}
-
 const loadingDotStyle = {
   width: 10,
   height: 10,
@@ -6324,35 +5416,4 @@ const toastErrorStyle = {
   border: "1px solid rgba(239,68,68,0.28)",
 }
 
-const devDebugPanelStyle = {
-  position: "fixed",
-  right: 20,
-  bottom: 20,
-  zIndex: 9,
-  width: 260,
-  padding: "12px 14px",
-  borderRadius: 16,
-  background: "rgba(10,16,24,0.86)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 18px 36px rgba(0,0,0,0.18)",
-  backdropFilter: "blur(12px)",
-}
-
-const devDebugPanelTitleStyle = {
-  color: "#f4f8fb",
-  fontSize: 12,
-  fontWeight: 800,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  marginBottom: 8,
-}
-
-const devDebugPanelTextStyle = {
-  color: "#b8c8d2",
-  fontSize: 11,
-  lineHeight: 1.55,
-  wordBreak: "break-word",
-}
-
 export default App
-

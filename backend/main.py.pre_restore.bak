@@ -1,0 +1,274 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import uuid
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "uploads"
+PROJECTS_DIR = UPLOAD_DIR / "projects"
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+
+def _base_polygon() -> list[list[int]]:
+    return [[40, 40], [540, 40], [540, 300], [40, 300]]
+
+
+def _floor_templates() -> list[dict[str, Any]]:
+    return [
+        {
+            "rooms": [
+                {"id": "f1-r1", "x": 118, "y": 104},
+                {"id": "f1-r2", "x": 278, "y": 104},
+                {"id": "f1-r3", "x": 446, "y": 104},
+                {"id": "f1-r4", "x": 116, "y": 236},
+                {"id": "f1-r5", "x": 246, "y": 236},
+                {"id": "f1-r6", "x": 444, "y": 236},
+            ],
+            "inner_walls": [
+                [195, 40, 195, 300],
+                [360, 40, 360, 300],
+                [40, 170, 540, 170],
+                [285, 170, 285, 300],
+            ],
+            "doors": [
+                {"x": 290, "y": 300, "width": 102},
+                {"x": 195, "y": 108, "width": 88},
+                {"x": 195, "y": 230, "width": 88},
+                {"x": 360, "y": 108, "width": 86},
+                {"x": 360, "y": 230, "width": 86},
+                {"x": 285, "y": 170, "width": 84},
+            ],
+            "windows": [
+                {"x": 120, "y": 300, "width": 112},
+                {"x": 455, "y": 300, "width": 112},
+                {"x": 120, "y": 40, "width": 108},
+                {"x": 275, "y": 40, "width": 96},
+                {"x": 440, "y": 40, "width": 104},
+                {"x": 540, "y": 110, "width": 86},
+            ],
+        },
+        {
+            "rooms": [
+                {"id": "f2-r1", "x": 108, "y": 98},
+                {"id": "f2-r2", "x": 255, "y": 98},
+                {"id": "f2-r3", "x": 470, "y": 116},
+                {"id": "f2-r4", "x": 110, "y": 232},
+                {"id": "f2-r5", "x": 286, "y": 232},
+                {"id": "f2-r6", "x": 468, "y": 252},
+            ],
+            "inner_walls": [
+                [180, 40, 180, 300],
+                [330, 40, 330, 300],
+                [420, 40, 420, 220],
+                [40, 165, 420, 165],
+                [245, 165, 245, 300],
+            ],
+            "doors": [
+                {"x": 280, "y": 300, "width": 102},
+                {"x": 180, "y": 100, "width": 86},
+                {"x": 180, "y": 225, "width": 86},
+                {"x": 330, "y": 102, "width": 84},
+                {"x": 330, "y": 210, "width": 84},
+                {"x": 420, "y": 112, "width": 82},
+                {"x": 245, "y": 228, "width": 82},
+            ],
+            "windows": [
+                {"x": 110, "y": 300, "width": 104},
+                {"x": 390, "y": 300, "width": 102},
+                {"x": 500, "y": 300, "width": 84},
+                {"x": 110, "y": 40, "width": 102},
+                {"x": 255, "y": 40, "width": 94},
+                {"x": 505, "y": 145, "width": 86},
+            ],
+        },
+        {
+            "rooms": [
+                {"id": "f3-r1", "x": 122, "y": 96},
+                {"id": "f3-r2", "x": 286, "y": 96},
+                {"id": "f3-r3", "x": 445, "y": 96},
+                {"id": "f3-r4", "x": 120, "y": 228},
+                {"id": "f3-r5", "x": 246, "y": 228},
+                {"id": "f3-r6", "x": 446, "y": 228},
+            ],
+            "inner_walls": [
+                [205, 40, 205, 300],
+                [365, 40, 365, 300],
+                [40, 155, 365, 155],
+                [285, 155, 285, 300],
+            ],
+            "doors": [
+                {"x": 295, "y": 300, "width": 102},
+                {"x": 205, "y": 96, "width": 86},
+                {"x": 205, "y": 222, "width": 86},
+                {"x": 365, "y": 98, "width": 86},
+                {"x": 365, "y": 214, "width": 86},
+                {"x": 285, "y": 224, "width": 82},
+            ],
+            "windows": [
+                {"x": 122, "y": 300, "width": 110},
+                {"x": 455, "y": 300, "width": 110},
+                {"x": 115, "y": 40, "width": 104},
+                {"x": 285, "y": 40, "width": 96},
+                {"x": 455, "y": 40, "width": 104},
+            ],
+        },
+    ]
+
+
+def _summary_for_floor(floor: dict[str, Any]) -> dict[str, int]:
+    return {
+        "polygon_points": len(floor["polygon"]),
+        "inner_wall_count": len(floor["inner_walls"]),
+        "door_count": len(floor["doors"]),
+        "window_count": len(floor["windows"]),
+        "room_count": len(floor["rooms"]),
+    }
+
+
+def _build_floor(
+    floor_index: int,
+    image_url: str,
+    floor_height: float,
+) -> dict[str, Any]:
+    template = _floor_templates()[floor_index % len(_floor_templates())]
+    floor = {
+        "floor_index": floor_index + 1,
+        "image_url": image_url,
+        "polygon": _base_polygon(),
+        "inner_walls": template["inner_walls"],
+        "doors": template["doors"],
+        "windows": template["windows"],
+        "rooms": template["rooms"],
+        "debug": {},
+        "height": floor_height,
+    }
+    floor["summary"] = _summary_for_floor(floor)
+    return floor
+
+
+def _build_project_payload(project_id: str, floors: list[dict[str, Any]], floor_height: float) -> dict[str, Any]:
+    total_rooms = sum(len(f["rooms"]) for f in floors)
+    total_doors = sum(len(f["doors"]) for f in floors)
+    total_windows = sum(len(f["windows"]) for f in floors)
+    total_inner = sum(len(f["inner_walls"]) for f in floors)
+    floor_count = len(floors)
+
+    return {
+        "project_id": project_id,
+        "floor_count": floor_count,
+        "floor_height": floor_height,
+        "building_height": round(floor_count * floor_height, 1),
+        "summary": {
+            "room_count": total_rooms,
+            "door_count": total_doors,
+            "window_count": total_windows,
+            "inner_wall_count": total_inner,
+        },
+        "floors": floors,
+    }
+
+
+def _project_json_path(project_id: str) -> Path:
+    return PROJECTS_DIR / project_id / "project.json"
+
+
+def _save_project(payload: dict[str, Any]) -> None:
+    project_dir = PROJECTS_DIR / payload["project_id"]
+    project_dir.mkdir(parents=True, exist_ok=True)
+    _project_json_path(payload["project_id"]).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _load_project(project_id: str) -> dict[str, Any]:
+    path = _project_json_path(project_id)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Project not found")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/projects/upload")
+async def upload_project(
+    files: list[UploadFile] = File(...),
+    floor_count: int = Form(3),
+) -> dict[str, Any]:
+    if floor_count < 1 or floor_count > 3:
+        raise HTTPException(status_code=400, detail="floor_count must be between 1 and 3")
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded")
+
+    project_id = f"proj-{uuid.uuid4().hex[:10]}"
+    project_dir = PROJECTS_DIR / project_id
+    floor_height = 3.2
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    pdf_files = [f for f in files if f.filename and f.filename.lower().endswith(".pdf")]
+    image_files = [f for f in files if not (f.filename and f.filename.lower().endswith(".pdf"))]
+
+    floors: list[dict[str, Any]] = []
+
+    if pdf_files:
+        # Keep workflow stable even when PDF page extraction is unavailable in local env.
+        for idx in range(floor_count):
+            floors.append(_build_floor(idx, f"/demo/floor_{idx + 1}.png", floor_height))
+    else:
+        if len(image_files) != floor_count:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Expected {floor_count} image file(s), received {len(image_files)}",
+            )
+
+        for idx, file in enumerate(image_files):
+            original_name = file.filename or f"floor_{idx + 1}.png"
+            ext = Path(original_name).suffix.lower()
+            if ext not in {".png", ".jpg", ".jpeg"}:
+                raise HTTPException(status_code=400, detail="Only PDF/PNG/JPG/JPEG allowed")
+
+            safe_name = f"floor_{idx + 1}{ext}"
+            saved_path = project_dir / safe_name
+            with saved_path.open("wb") as out:
+                shutil.copyfileobj(file.file, out)
+
+            floors.append(_build_floor(idx, f"/uploads/projects/{project_id}/{safe_name}", floor_height))
+
+    payload = _build_project_payload(project_id, floors, floor_height)
+    _save_project(payload)
+
+    return {"ok": True, "project_id": project_id, "floor_count": floor_count}
+
+
+@app.get("/projects/{project_id}")
+def get_project(project_id: str, floor_height: float = 3.2) -> dict[str, Any]:
+    payload = _load_project(project_id)
+    payload["floor_height"] = floor_height
+    payload["building_height"] = round(payload["floor_count"] * floor_height, 1)
+    for floor in payload.get("floors", []):
+        floor["height"] = floor_height
+    return payload
+

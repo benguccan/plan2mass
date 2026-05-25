@@ -1,0 +1,24 @@
+export function buildWallGraph(walls = []) {
+  return {
+    walls: Array.isArray(walls) ? walls : [],
+  }
+}
+
+export function classifyOpenings(openings = []) {
+  return Array.isArray(openings) ? openings : []
+}
+
+export function matchOpeningsToWalls(wallGraph, openings = []) {
+  return {
+    wallGraph: wallGraph || { walls: [] },
+    openings: Array.isArray(openings) ? openings : [],
+    matches: [],
+  }
+}
+
+export function splitWallsByOpenings(walls = [], matches = []) {
+  return {
+    walls: Array.isArray(walls) ? walls : [],
+    segments: Array.isArray(matches) ? matches : [],
+  }
+}

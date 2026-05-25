@@ -10,6 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babylonjs/core": "^9.0.0",
+    "@babylonjs/serializers": "^9.0.0",
+    "babylonjs-gltf2interface": "^9.0.0",
+    "earcut": "^3.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.183.2"

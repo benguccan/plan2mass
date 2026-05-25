@@ -1,0 +1,18 @@
+# Python
+backend/venv/
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+
+# Local/runtime data
+backend/uploads/
+backend/debug/
+backend/renders/
+
