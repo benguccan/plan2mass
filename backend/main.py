@@ -971,33 +971,47 @@ def segments_from_oriented_mask(
     polygon_np: np.ndarray,
     source_mask: np.ndarray,
     scale: Dict[str, int],
-) -> List[List[int]]:
+) -> Tuple[List[List[int]], Dict[str, Any]]:
     contours, _ = cv2.findContours(oriented_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     segments: List[List[int]] = []
+    debug_stats: Dict[str, Any] = {
+        "raw_candidate_wall_count": len(contours),
+        "accepted_segment_count": 0,
+        "rejected_segment_count": 0,
+        "reject_reasons": {},
+    }
 
     max_wall_thickness = scale["max_wall_thickness"]
     min_wall_thickness = scale["min_wall_thickness"]
+
+    def reject(reason: str) -> None:
+        debug_stats["rejected_segment_count"] += 1
+        debug_stats["reject_reasons"][reason] = debug_stats["reject_reasons"].get(reason, 0) + 1
 
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
         area = cv2.contourArea(cnt)
 
         if area < 30:
+            reject("contour_area_too_small")
             continue
 
         if orientation == "h":
             if w < MIN_WALL_LENGTH_PX or h > max_wall_thickness * 2 or h < min_wall_thickness:
+                reject("horizontal_bbox_out_of_range")
                 continue
             y_mid = int(round(y + h / 2))
             line = [x, y_mid, x + w, y_mid]
         else:
             if h < MIN_WALL_LENGTH_PX or w > max_wall_thickness * 2 or w < min_wall_thickness:
+                reject("vertical_bbox_out_of_range")
                 continue
             x_mid = int(round(x + w / 2))
             line = [x_mid, y, x_mid, y + h]
 
         mx, my = midpoint_of_line(line)
         if not point_inside_polygon((mx, my), polygon_np):
+            reject("candidate_midpoint_outside_polygon")
             continue
 
         refined_segments = split_line_into_supported_runs(
@@ -1007,9 +1021,14 @@ def segments_from_oriented_mask(
             scale=scale,
         )
 
-        for refined_line in refined_segments or [line]:
+        if not refined_segments:
+            reject("unsupported_run_split")
+            continue
+
+        for refined_line in refined_segments:
             rmx, rmy = midpoint_of_line(refined_line)
             if not point_inside_polygon((rmx, rmy), polygon_np):
+                reject("refined_midpoint_outside_polygon")
                 continue
 
             estimated_thickness = estimate_line_thickness(
@@ -1018,12 +1037,15 @@ def segments_from_oriented_mask(
                 source_mask=source_mask,
                 max_radius=max_wall_thickness,
             )
-            if estimated_thickness < min_wall_thickness:
+            required_thickness = max(min_wall_thickness, int(round(scale["max_wall_thickness"] * 0.36)))
+            if estimated_thickness < required_thickness:
+                reject("estimated_thickness_too_small")
                 continue
 
             segments.append(refined_line)
+            debug_stats["accepted_segment_count"] += 1
 
-    return segments
+    return segments, debug_stats
 
 
 def collapse_parallel_double_lines(
@@ -1091,17 +1113,19 @@ def filter_lines_inside_building(
     lines: List[List[int]],
     polygon_np: np.ndarray,
     outer_margin: int = 10,
-) -> List[List[int]]:
+) -> Tuple[List[List[int]], Dict[str, int]]:
     filtered: List[List[int]] = []
+    stats = {"rejected_outer_edge_proximity": 0}
 
     for line in lines:
         mx, my = midpoint_of_line(line)
         signed_dist = cv2.pointPolygonTest(polygon_np, (float(mx), float(my)), True)
         if signed_dist < outer_margin:
+            stats["rejected_outer_edge_proximity"] += 1
             continue
         filtered.append(line)
 
-    return filtered
+    return filtered, stats
 
 
 def line_endpoints(line: List[int]) -> List[Tuple[int, int]]:
@@ -1154,11 +1178,12 @@ def prune_spurious_inner_walls(
     lines: List[List[int]],
     polygon_np: np.ndarray,
     scale: Dict[str, int],
-) -> List[List[int]]:
+) -> Tuple[List[List[int]], Dict[str, int]]:
     if not lines:
-        return []
+        return [], {"pruned_spurious_short_or_disconnected": 0}
 
     kept: List[List[int]] = []
+    stats = {"pruned_spurious_short_or_disconnected": 0}
     long_len = max(140, scale["opening_max_gap"])
     medium_len = max(85, scale["opening_min_gap"] * 3)
     short_len = max(58, scale["opening_min_gap"] * 2)
@@ -1173,19 +1198,99 @@ def prune_spurious_inner_walls(
             kept.append(line)
             continue
 
-        if length >= medium_len and connections >= 2 and signed_dist >= scale["outer_edge_offset"] * 1.5:
+        if length >= medium_len and connections >= 1 and signed_dist >= scale["outer_edge_offset"] * 1.5:
             kept.append(line)
             continue
 
         if (
             length >= short_len
-            and connections >= 2
-            and signed_dist >= max(scale["outer_edge_offset"] * 2.0, scale["opening_min_gap"] * 0.8)
+            and connections >= 1
+            and signed_dist >= max(scale["outer_edge_offset"] * 3.0, scale["opening_min_gap"] * 1.2)
         ):
             kept.append(line)
             continue
 
-    return kept
+        stats["pruned_spurious_short_or_disconnected"] += 1
+
+    return kept, stats
+
+
+def filter_symbolic_vertical_walls(
+    lines: List[List[int]],
+    polygon_np: np.ndarray,
+    source_mask: np.ndarray,
+    scale: Dict[str, int],
+) -> Tuple[List[List[int]], Dict[str, int]]:
+    if not lines:
+        return [], {"rejected_symbolic_vertical_lines": 0}
+
+    filtered: List[List[int]] = []
+    stats = {"rejected_symbolic_vertical_lines": 0}
+    top_symbol_band = max(scale["opening_max_gap"], 110)
+    thin_symbol_thickness = max(scale["min_wall_thickness"] + 1, int(round(scale["max_wall_thickness"] * 0.32)))
+    max_symbol_length = max(scale["opening_max_gap"] * 2, 250)
+
+    def count_horizontal_crossings(line_to_check: List[int]) -> int:
+        px = int(line_to_check[0])
+        y_start = int(min(line_to_check[1], line_to_check[3]))
+        y_end = int(max(line_to_check[1], line_to_check[3]))
+        h, w = source_mask.shape[:2]
+        hits: List[int] = []
+        span_threshold = max(scale["opening_min_gap"], 24)
+
+        for py in range(max(0, y_start), min(h, y_end + 1), max(4, scale["opening_scan_step"])):
+            left = px
+            while left >= 0 and source_mask[py, left] > 0:
+                left -= 1
+            right = px
+            while right < w and source_mask[py, right] > 0:
+                right += 1
+            span = right - left - 1
+            if span >= span_threshold:
+                hits.append(py)
+
+        if not hits:
+            return 0
+
+        clusters = 1
+        previous = hits[0]
+        for current in hits[1:]:
+            if current - previous > max(8, scale["opening_scan_step"] * 2):
+                clusters += 1
+            previous = current
+        return clusters
+
+    for line in lines:
+        x1, y1, x2, y2 = line
+        if x1 != x2:
+            filtered.append(line)
+            continue
+
+        mx, my = midpoint_of_line(line)
+        signed_dist = cv2.pointPolygonTest(polygon_np, (float(mx), float(my)), True)
+        length = line_length(line)
+        connections = count_line_connections(line, lines, tol=12)
+        thickness = estimate_line_thickness(
+            line,
+            orientation="v",
+            source_mask=source_mask,
+            max_radius=scale["max_wall_thickness"],
+        )
+        horizontal_crossings = count_horizontal_crossings(line)
+
+        if (
+            signed_dist <= top_symbol_band
+            and length <= max_symbol_length
+            and thickness <= thin_symbol_thickness
+            and connections <= 2
+            and horizontal_crossings >= 4
+        ):
+            stats["rejected_symbolic_vertical_lines"] += 1
+            continue
+
+        filtered.append(line)
+
+    return filtered, stats
 
 
 def draw_lines_mask(shape: Tuple[int, int], lines: List[List[int]], thickness: int) -> np.ndarray:
@@ -1294,6 +1399,19 @@ def extract_inner_walls(
     floor_name: str,
     scale: Dict[str, int],
 ) -> Tuple[List[List[int]], np.ndarray]:
+    debug_stats: Dict[str, Any] = {
+        "raw_candidate_wall_count": 0,
+        "filtered_wall_count": 0,
+        "rejected_segment_count": 0,
+        "reject_reasons": {},
+        "stages": {},
+    }
+
+    def merge_reasons(reason_map: Dict[str, int]) -> None:
+        for key, value in reason_map.items():
+            debug_stats["reject_reasons"][key] = debug_stats["reject_reasons"].get(key, 0) + int(value)
+            debug_stats["rejected_segment_count"] += int(value)
+
     horizontal_mask, vertical_mask, combined_mask, inner_candidates = extract_oriented_wall_masks(
         binary_mask,
         polygon_np,
@@ -1305,23 +1423,68 @@ def extract_inner_walls(
     save_debug(project_debug_dir, floor_name, "vertical_walls_mask.png", vertical_mask)
     save_debug(project_debug_dir, floor_name, "combined_walls_mask.png", combined_mask)
 
-    horizontal_segments = segments_from_oriented_mask(horizontal_mask, "h", polygon_np, inner_candidates, scale)
-    vertical_segments = segments_from_oriented_mask(vertical_mask, "v", polygon_np, inner_candidates, scale)
+    horizontal_segments, horizontal_stats = segments_from_oriented_mask(
+        horizontal_mask, "h", polygon_np, inner_candidates, scale
+    )
+    vertical_segments, vertical_stats = segments_from_oriented_mask(
+        vertical_mask, "v", polygon_np, inner_candidates, scale
+    )
+
+    debug_stats["raw_candidate_wall_count"] = int(
+        horizontal_stats["raw_candidate_wall_count"] + vertical_stats["raw_candidate_wall_count"]
+    )
+    merge_reasons(horizontal_stats["reject_reasons"])
+    merge_reasons(vertical_stats["reject_reasons"])
+    debug_stats["stages"]["oriented_segments"] = int(len(horizontal_segments) + len(vertical_segments))
 
     wall_segments = horizontal_segments + vertical_segments
     wall_segments = collapse_parallel_double_lines(wall_segments, pair_tol=scale["pair_merge_tol"])
-    wall_segments = merge_collinear_lines(wall_segments, pos_tol=8, gap_tol=14)
+    debug_stats["stages"]["after_collapse_parallel_double_lines"] = int(len(wall_segments))
+    collinear_gap_tol = max(14, min(scale["opening_max_gap"], 110))
+    wall_segments = merge_collinear_lines(wall_segments, pos_tol=8, gap_tol=collinear_gap_tol)
+    debug_stats["stages"]["after_merge_collinear_lines_1"] = int(len(wall_segments))
     wall_segments = remove_duplicate_lines(wall_segments, coord_tol=8, length_tol=12)
-    wall_segments = filter_lines_inside_building(wall_segments, polygon_np, outer_margin=scale["outer_edge_offset"])
-    wall_segments = prune_spurious_inner_walls(wall_segments, polygon_np, scale)
-    wall_segments = merge_collinear_lines(wall_segments, pos_tol=8, gap_tol=12)
+    debug_stats["stages"]["after_remove_duplicate_lines_1"] = int(len(wall_segments))
+    outer_margin = max(scale["outer_edge_offset"] * 4, scale["max_wall_thickness"] * 2 + 12)
+    wall_segments, outer_filter_stats = filter_lines_inside_building(
+        wall_segments,
+        polygon_np,
+        outer_margin=outer_margin,
+    )
+    merge_reasons(outer_filter_stats)
+    debug_stats["stages"]["after_filter_lines_inside_building"] = int(len(wall_segments))
+    wall_segments, symbolic_stats = filter_symbolic_vertical_walls(
+        wall_segments,
+        polygon_np,
+        source_mask=inner_candidates,
+        scale=scale,
+    )
+    merge_reasons(symbolic_stats)
+    debug_stats["stages"]["after_filter_symbolic_vertical_walls"] = int(len(wall_segments))
+    debug_stats["stages"]["after_prune_spurious_inner_walls"] = int(len(wall_segments))
+    wall_segments = merge_collinear_lines(wall_segments, pos_tol=8, gap_tol=collinear_gap_tol)
+    debug_stats["stages"]["after_merge_collinear_lines_2"] = int(len(wall_segments))
     wall_segments = remove_duplicate_lines(wall_segments, coord_tol=8, length_tol=12)
+    debug_stats["stages"]["after_remove_duplicate_lines_2"] = int(len(wall_segments))
+    debug_stats["filtered_wall_count"] = int(len(horizontal_segments) + len(vertical_segments))
+    debug_stats["final_inner_wall_count"] = int(len(wall_segments))
 
     debug = debug_img.copy()
     for x1, y1, x2, y2 in wall_segments:
         cv2.line(debug, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
     save_debug(project_debug_dir, floor_name, "inner_walls_debug.png", debug)
+    floor_debug_dir = project_debug_dir / floor_name
+    floor_debug_dir.mkdir(parents=True, exist_ok=True)
+    (floor_debug_dir / "inner_walls_stats.json").write_text(json.dumps(debug_stats, indent=2), encoding="utf-8")
+    print(
+        "[extract_inner_walls] "
+        f"floor={floor_name} raw_candidate_wall_count={debug_stats['raw_candidate_wall_count']} "
+        f"filtered_wall_count={debug_stats['filtered_wall_count']} "
+        f"rejected_segment_count={debug_stats['rejected_segment_count']} "
+        f"final_inner_wall_count={debug_stats['final_inner_wall_count']}"
+    )
+    print(f"[extract_inner_walls] floor={floor_name} reject_reasons={debug_stats['reject_reasons']}")
     return wall_segments, combined_mask
 
 
@@ -1412,6 +1575,183 @@ def scan_openings_on_line(
             openings.append({"x": int(mx), "y": int(my), "width": int(gap_len)})
 
     return openings
+
+
+def scan_inner_wall_gaps_with_symbol_support(
+    line: List[int],
+    wall_mask: np.ndarray,
+    symbol_mask: np.ndarray,
+    polygon_contour: np.ndarray,
+    scale: Dict[str, int],
+) -> Tuple[List[Dict[str, int]], Dict[str, Any]]:
+    step = max(4, scale["opening_scan_step"])
+    min_gap = max(12, int(round(scale["opening_min_gap"] * 0.45)))
+    max_gap = int(round(scale["opening_max_gap"] * 1.25))
+    band_radius = max(3, scale["max_wall_thickness"] // 2)
+    near_outer_tol = max(24, scale["outer_edge_offset"] * 3)
+    symbol_band = max(10, scale["max_wall_thickness"] * 3)
+    min_symbol_pixels = max(10, scale["min_wall_thickness"] * 2)
+
+    stats: Dict[str, Any] = {
+        "gap_candidates": [],
+        "accepted_candidates": [],
+        "reject_reasons": {},
+        "evaluations": [],
+    }
+
+    def reject(reason: str) -> None:
+        stats["reject_reasons"][reason] = stats["reject_reasons"].get(reason, 0) + 1
+
+    samples = sample_along_segment(line, step=step)
+    if len(samples) < 4:
+        reject("line_too_short_for_gap_scan")
+        return [], stats
+
+    values = [wall_support_at_point(pt, line, wall_mask, band_radius) for pt in samples]
+    positive_values = [v for v in values if v > 0]
+    if not positive_values:
+        reject("no_positive_wall_support")
+        return [], stats
+
+    support_threshold = max(2, int(np.percentile(positive_values, 55) * 0.8))
+    candidates: List[Dict[str, int]] = []
+    gap_start_idx: Optional[int] = None
+    h, w = symbol_mask.shape[:2]
+
+    for i, val in enumerate(values):
+        is_gap = val <= support_threshold
+        if is_gap and gap_start_idx is None:
+            gap_start_idx = i
+        elif not is_gap and gap_start_idx is not None:
+            gap_len = (i - gap_start_idx) * step
+            if min_gap <= gap_len <= max_gap:
+                mid_idx = (gap_start_idx + i) // 2
+                mx, my = samples[mid_idx]
+                point = {"x": int(mx), "y": int(my), "width": int(gap_len)}
+                stats["gap_candidates"].append(point)
+                search_rect = {
+                    "x1": int(max(0, mx - symbol_band)),
+                    "y1": int(max(0, my - symbol_band)),
+                    "x2": int(min(w, mx + symbol_band + 1)),
+                    "y2": int(min(h, my + symbol_band + 1)),
+                }
+                evaluation: Dict[str, Any] = {
+                    "center": point,
+                    "host_line": line,
+                    "search_rect": search_rect,
+                    "accepted": False,
+                    "reject_reason": None,
+                    "symbol_pixels": 0,
+                }
+
+                if point_near_polygon((mx, my), polygon_contour, dist_tol=near_outer_tol):
+                    evaluation["reject_reason"] = "gap_near_outer_polygon"
+                    stats["evaluations"].append(evaluation)
+                    reject("gap_near_outer_polygon")
+                elif point_near_any_line_endpoint((mx, my), [line], tol=14):
+                    evaluation["reject_reason"] = "gap_near_line_endpoint"
+                    stats["evaluations"].append(evaluation)
+                    reject("gap_near_line_endpoint")
+                else:
+                    if line[1] == line[3]:
+                        left_x1 = max(0, mx - symbol_band)
+                        left_x2 = max(0, mx - 2)
+                        right_x1 = min(w, mx + 2)
+                        right_x2 = min(w, mx + symbol_band)
+                        y1 = max(0, my - band_radius - 4)
+                        y2 = min(h, my + band_radius + 5)
+                        side_a = symbol_mask[y1:y2, left_x1:left_x2]
+                        side_b = symbol_mask[y1:y2, right_x1:right_x2]
+                    else:
+                        top_y1 = max(0, my - symbol_band)
+                        top_y2 = max(0, my - 2)
+                        bottom_y1 = min(h, my + 2)
+                        bottom_y2 = min(h, my + symbol_band)
+                        x1 = max(0, mx - band_radius - 4)
+                        x2 = min(w, mx + band_radius + 5)
+                        side_a = symbol_mask[top_y1:top_y2, x1:x2]
+                        side_b = symbol_mask[bottom_y1:bottom_y2, x1:x2]
+
+                    symbol_pixels = max(
+                        int(np.sum(side_a > 0)) if side_a.size else 0,
+                        int(np.sum(side_b > 0)) if side_b.size else 0,
+                    )
+                    evaluation["symbol_pixels"] = symbol_pixels
+                    if symbol_pixels < min_symbol_pixels:
+                        evaluation["reject_reason"] = "gap_missing_nearby_symbol"
+                        stats["evaluations"].append(evaluation)
+                        reject("gap_missing_nearby_symbol")
+                    else:
+                        candidates.append(point)
+                        stats["accepted_candidates"].append({**point, "symbol_pixels": symbol_pixels})
+                        evaluation["accepted"] = True
+                        stats["evaluations"].append(evaluation)
+            gap_start_idx = None
+
+    if gap_start_idx is not None:
+        gap_len = (len(values) - gap_start_idx) * step
+        if min_gap <= gap_len <= max_gap:
+            mid_idx = (gap_start_idx + len(values) - 1) // 2
+            mx, my = samples[mid_idx]
+            point = {"x": int(mx), "y": int(my), "width": int(gap_len)}
+            stats["gap_candidates"].append(point)
+            search_rect = {
+                "x1": int(max(0, mx - symbol_band)),
+                "y1": int(max(0, my - symbol_band)),
+                "x2": int(min(w, mx + symbol_band + 1)),
+                "y2": int(min(h, my + symbol_band + 1)),
+            }
+            evaluation = {
+                "center": point,
+                "host_line": line,
+                "search_rect": search_rect,
+                "accepted": False,
+                "reject_reason": None,
+                "symbol_pixels": 0,
+            }
+            if point_near_polygon((mx, my), polygon_contour, dist_tol=near_outer_tol):
+                evaluation["reject_reason"] = "gap_near_outer_polygon"
+                stats["evaluations"].append(evaluation)
+                reject("gap_near_outer_polygon")
+            elif point_near_any_line_endpoint((mx, my), [line], tol=14):
+                evaluation["reject_reason"] = "gap_near_line_endpoint"
+                stats["evaluations"].append(evaluation)
+                reject("gap_near_line_endpoint")
+            else:
+                if line[1] == line[3]:
+                    left_x1 = max(0, mx - symbol_band)
+                    left_x2 = max(0, mx - 2)
+                    right_x1 = min(w, mx + 2)
+                    right_x2 = min(w, mx + symbol_band)
+                    y1 = max(0, my - band_radius - 4)
+                    y2 = min(h, my + band_radius + 5)
+                    side_a = symbol_mask[y1:y2, left_x1:left_x2]
+                    side_b = symbol_mask[y1:y2, right_x1:right_x2]
+                else:
+                    top_y1 = max(0, my - symbol_band)
+                    top_y2 = max(0, my - 2)
+                    bottom_y1 = min(h, my + 2)
+                    bottom_y2 = min(h, my + symbol_band)
+                    x1 = max(0, mx - band_radius - 4)
+                    x2 = min(w, mx + band_radius + 5)
+                    side_a = symbol_mask[top_y1:top_y2, x1:x2]
+                    side_b = symbol_mask[bottom_y1:bottom_y2, x1:x2]
+                symbol_pixels = max(
+                    int(np.sum(side_a > 0)) if side_a.size else 0,
+                    int(np.sum(side_b > 0)) if side_b.size else 0,
+                )
+                evaluation["symbol_pixels"] = symbol_pixels
+                if symbol_pixels < min_symbol_pixels:
+                    evaluation["reject_reason"] = "gap_missing_nearby_symbol"
+                    stats["evaluations"].append(evaluation)
+                    reject("gap_missing_nearby_symbol")
+                else:
+                    candidates.append(point)
+                    stats["accepted_candidates"].append({**point, "symbol_pixels": symbol_pixels})
+                    evaluation["accepted"] = True
+                    stats["evaluations"].append(evaluation)
+
+    return candidates, stats
 
 
 def point_near_any_line_endpoint(
@@ -1627,13 +1967,15 @@ def project_openings_to_host_lines(
     lines: List[List[int]],
     max_distance: float,
     endpoint_tol: int = 22,
+    min_t: float = 0.08,
+    max_t: float = 0.92,
 ) -> List[Dict[str, int]]:
     hosted: List[Dict[str, int]] = []
 
     for point in points:
         px, py = point["x"], point["y"]
 
-        host = find_best_host_line((px, py), lines, max_distance=max_distance)
+        host = find_best_host_line((px, py), lines, max_distance=max_distance, min_t=min_t, max_t=max_t)
         if host is None:
             continue
 
@@ -1652,6 +1994,151 @@ def project_openings_to_host_lines(
     return hosted
 
 
+def boosted_opening_width(width: int, scale: Dict[str, int], opening_type: str) -> int:
+    base_width = max(int(width), scale["opening_min_gap"])
+    if opening_type == "door":
+        return max(base_width * 4, int(round(scale["opening_max_gap"] * 2.2)))
+    if opening_type == "window":
+        return max(base_width * 4, int(round(scale["opening_max_gap"] * 2.2)))
+    return base_width
+
+
+def detect_symbolic_inner_door_candidates(
+    inner_walls: List[List[int]],
+    binary_mask: np.ndarray,
+    structural_mask: np.ndarray,
+    polygon_contour: np.ndarray,
+    scale: Dict[str, int],
+) -> Tuple[List[Dict[str, int]], np.ndarray, Dict[str, Any]]:
+    base_symbol_mask = cv2.bitwise_and(binary_mask, cv2.bitwise_not(structural_mask))
+    base_symbol_mask = cv2.morphologyEx(base_symbol_mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8), iterations=1)
+
+    axis_kernel = max(10, scale["opening_min_gap"] // 2)
+    horizontal = cv2.morphologyEx(
+        structural_mask,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (axis_kernel, 1)),
+    )
+    vertical = cv2.morphologyEx(
+        structural_mask,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (1, axis_kernel)),
+    )
+    axis_aligned_structural = cv2.bitwise_or(horizontal, vertical)
+    axis_aligned_structural = cv2.dilate(axis_aligned_structural, np.ones((3, 3), np.uint8), iterations=1)
+
+    recovered_symbolic = cv2.bitwise_and(structural_mask, cv2.bitwise_not(axis_aligned_structural))
+    recovered_symbolic = cv2.morphologyEx(recovered_symbolic, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8), iterations=1)
+    recovered_symbolic = cv2.morphologyEx(recovered_symbolic, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)
+    recovered_symbolic = remove_small_components(recovered_symbolic, min_area=max(6, scale["min_wall_thickness"] * 2))
+
+    symbol_mask = cv2.bitwise_or(base_symbol_mask, recovered_symbolic)
+
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(symbol_mask, connectivity=8)
+    candidates: List[Dict[str, int]] = []
+    debug_stats: Dict[str, Any] = {
+        "symbolic_mask_pixel_count_before": int(np.sum(base_symbol_mask > 0)),
+        "symbolic_mask_pixel_count_after": int(np.sum(symbol_mask > 0)),
+        "raw_component_count": max(0, int(num_labels) - 1),
+        "accepted_symbolic_components": 0,
+        "rejected_symbolic_components": 0,
+        "accepted_component_count": 0,
+        "symbolic_reject_reasons": {},
+        "reject_reasons": {},
+    }
+
+    def reject(reason: str) -> None:
+        debug_stats["rejected_symbolic_components"] += 1
+        debug_stats["symbolic_reject_reasons"][reason] = debug_stats["symbolic_reject_reasons"].get(reason, 0) + 1
+        debug_stats["reject_reasons"][reason] = debug_stats["reject_reasons"].get(reason, 0) + 1
+
+    min_area = max(18, scale["min_wall_thickness"] * 3)
+    max_area = max(2200, scale["opening_max_gap"] * scale["opening_min_gap"] * 2)
+    near_outer_tol = max(26, scale["outer_edge_offset"] * 3)
+    host_distance = max(34, int(round(scale["opening_max_gap"] * 0.7)))
+    host_band_tol = max(10, scale["max_wall_thickness"] * 2)
+
+    for label in range(1, num_labels):
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        x = int(stats[label, cv2.CC_STAT_LEFT])
+        y = int(stats[label, cv2.CC_STAT_TOP])
+        w = int(stats[label, cv2.CC_STAT_WIDTH])
+        h = int(stats[label, cv2.CC_STAT_HEIGHT])
+        cx, cy = centroids[label]
+        cx = int(round(cx))
+        cy = int(round(cy))
+
+        if area < min_area:
+            reject("symbol_area_too_small")
+            continue
+        if area > max_area:
+            reject("symbol_area_too_large")
+            continue
+
+        if point_near_polygon((cx, cy), polygon_contour, dist_tol=near_outer_tol):
+            reject("symbol_near_outer_polygon")
+            continue
+
+        bbox_aspect = max(w, h) / max(1, min(w, h))
+        if bbox_aspect > 6.5:
+            reject("symbol_aspect_too_extreme")
+            continue
+
+        host = find_best_host_line((cx, cy), inner_walls, max_distance=host_distance, min_t=0.04, max_t=0.96)
+        if host is None:
+            reject("symbol_no_inner_host")
+            continue
+
+        line = host["line"]
+        pixel_rows, pixel_cols = np.where(labels == label)
+        if len(pixel_rows) == 0:
+            reject("symbol_empty_component")
+            continue
+
+        if line[1] == line[3]:
+            line_y = int(round(line[1]))
+            near_mask = np.abs(pixel_rows - line_y) <= host_band_tol
+            parallel_values = pixel_cols[near_mask] if np.any(near_mask) else pixel_cols
+            candidate_x = int(round(float(np.median(parallel_values))))
+            candidate_y = line_y
+        else:
+            line_x = int(round(line[0]))
+            near_mask = np.abs(pixel_cols - line_x) <= host_band_tol
+            parallel_values = pixel_rows[near_mask] if np.any(near_mask) else pixel_rows
+            candidate_x = line_x
+            # Swing arcs on vertical inner walls tend to bias upward if we only
+            # look at the pixels hugging the wall. Blend in the full component
+            # height so the hosted door center lands lower on the wall opening.
+            candidate_y = int(
+                round(
+                    max(
+                        float(np.quantile(parallel_values, 0.9)),
+                        float(np.quantile(pixel_rows, 0.82)),
+                    )
+                )
+            )
+
+        if point_near_any_line_endpoint((candidate_x, candidate_y), [line], tol=12):
+            reject("symbol_projection_near_endpoint")
+            continue
+
+        width_hint = int(np.ptp(parallel_values)) + 1 if len(parallel_values) else max(w, h)
+        width_hint = max(width_hint, int(round(scale["opening_min_gap"] * 0.9)))
+        width_hint = min(width_hint, int(round(scale["opening_max_gap"] * 1.35)))
+
+        candidates.append(
+            {
+                "x": candidate_x,
+                "y": candidate_y,
+                "width": width_hint,
+            }
+        )
+        debug_stats["accepted_symbolic_components"] += 1
+        debug_stats["accepted_component_count"] += 1
+
+    return merge_opening_points(candidates, tol=20), symbol_mask, debug_stats
+
+
 def detect_openings(
     inner_walls: List[List[int]],
     outer_polygon: List[List[int]],
@@ -1666,14 +2153,176 @@ def detect_openings(
     floor_name: str,
     scale: Dict[str, int],
 ) -> Tuple[List[Dict[str, int]], List[Dict[str, int]]]:
-    raw_doors: List[Dict[str, int]] = []
+    raw_inner_doors: List[Dict[str, int]] = []
+    raw_outer_doors: List[Dict[str, int]] = []
     raw_windows: List[Dict[str, int]] = []
     debug = debug_img.copy()
+    debug_stats: Dict[str, Any] = {
+        "raw_door_candidates": [],
+        "filtered_door_candidates": [],
+        "raw_window_candidates": [],
+        "filtered_window_candidates": [],
+        "rejected_candidate_reasons": {},
+        "raw_symbolic_inner_door_candidates": [],
+        "inner_door_gap_candidates": [],
+        "inner_wall_gap_candidates": [],
+        "gap_plus_symbol_candidates": [],
+        "merged_inner_door_candidates": [],
+        "inner_door_hosted_count": 0,
+        "inner_door_reject_reasons": {},
+        "gap_reject_reasons": {},
+        "stages": {},
+    }
+
+    def reject(reason: str, point: Optional[Dict[str, int]] = None) -> None:
+        debug_stats["rejected_candidate_reasons"][reason] = debug_stats["rejected_candidate_reasons"].get(reason, 0) + 1
+        if point is not None:
+            bucket = debug_stats.setdefault("rejected_candidates", [])
+            if len(bucket) < 40:
+                bucket.append({"reason": reason, **point})
+
+    def draw_gap_debug_artifacts(
+        evaluations: List[Dict[str, Any]],
+        base_img: np.ndarray,
+        structural: np.ndarray,
+        symbolic: np.ndarray,
+    ) -> None:
+        if not evaluations:
+            return
+
+        overlay = base_img.copy()
+        structural_bgr = cv2.cvtColor(structural, cv2.COLOR_GRAY2BGR)
+        symbolic_bgr = cv2.cvtColor(symbolic, cv2.COLOR_GRAY2BGR)
+        h, w = base_img.shape[:2]
+
+        for idx, item in enumerate(evaluations, start=1):
+            center = item["center"]
+            rect = item["search_rect"]
+            accepted = bool(item.get("accepted"))
+            color = (40, 200, 40) if accepted else (40, 40, 220)
+            label = f"G{idx}:{'OK' if accepted else 'NO'}"
+
+            cv2.circle(overlay, (int(center["x"]), int(center["y"])), 7, color, -1)
+            cv2.rectangle(
+                overlay,
+                (int(rect["x1"]), int(rect["y1"])),
+                (int(rect["x2"]), int(rect["y2"])),
+                color,
+                2,
+            )
+            line = item.get("host_line")
+            if line:
+                cv2.line(overlay, (int(line[0]), int(line[1])), (int(line[2]), int(line[3])), color, 2)
+            cv2.putText(
+                overlay,
+                label,
+                (int(center["x"]) + 8, max(18, int(center["y"]) - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
+
+            pad = 28
+            x1 = max(0, int(rect["x1"]) - pad)
+            y1 = max(0, int(rect["y1"]) - pad)
+            x2 = min(w, int(rect["x2"]) + pad)
+            y2 = min(h, int(rect["y2"]) + pad)
+
+            original_crop = base_img[y1:y2, x1:x2].copy()
+            structural_crop = structural_bgr[y1:y2, x1:x2].copy()
+            symbolic_crop = symbolic_bgr[y1:y2, x1:x2].copy()
+
+            local_rect = (int(rect["x1"]) - x1, int(rect["y1"]) - y1, int(rect["x2"]) - x1, int(rect["y2"]) - y1)
+            local_center = (int(center["x"]) - x1, int(center["y"]) - y1)
+
+            for crop in (original_crop, structural_crop, symbolic_crop):
+                cv2.rectangle(crop, (local_rect[0], local_rect[1]), (local_rect[2], local_rect[3]), color, 2)
+                cv2.circle(crop, local_center, 5, color, -1)
+
+            panel = np.concatenate([original_crop, structural_crop, symbolic_crop], axis=1)
+            reason = item.get("reject_reason") or "accepted"
+            cv2.putText(
+                panel,
+                f"G{idx} {reason}",
+                (10, 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                panel,
+                f"symbol_px={int(item.get('symbol_pixels', 0))}",
+                (10, 42),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
+            save_debug(project_debug_dir, floor_name, f"gap_{idx}_crop.png", panel)
+
+        save_debug(project_debug_dir, floor_name, "gap_debug_overlay.png", overlay)
 
     for line in inner_walls:
         if line_length(line) < 60:
             continue
-        raw_doors.extend(scan_openings_on_line(line, inner_wall_mask, scale))
+        line_candidates = scan_openings_on_line(line, inner_wall_mask, scale)
+        for point in line_candidates:
+            debug_stats["inner_door_gap_candidates"].append({"host_line": line, **point})
+            debug_stats["raw_door_candidates"].append({"source": "inner_wall_scan", "host_line": line, **point})
+        raw_inner_doors.extend(line_candidates)
+
+    symbolic_inner_doors, symbolic_inner_door_mask, symbolic_inner_door_stats = detect_symbolic_inner_door_candidates(
+        inner_walls=inner_walls,
+        binary_mask=binary_mask,
+        structural_mask=structural_mask,
+        polygon_contour=outer_polygon_contour,
+        scale=scale,
+    )
+    save_debug(project_debug_dir, floor_name, "symbolic_inner_doors_mask.png", symbolic_inner_door_mask)
+    debug_stats["inner_door_reject_reasons"] = symbolic_inner_door_stats["reject_reasons"]
+    debug_stats["symbolic_mask_pixel_count_before"] = symbolic_inner_door_stats.get("symbolic_mask_pixel_count_before", 0)
+    debug_stats["symbolic_mask_pixel_count_after"] = symbolic_inner_door_stats.get("symbolic_mask_pixel_count_after", 0)
+    debug_stats["accepted_symbolic_components"] = symbolic_inner_door_stats.get("accepted_symbolic_components", 0)
+    debug_stats["rejected_symbolic_components"] = symbolic_inner_door_stats.get("rejected_symbolic_components", 0)
+    debug_stats["symbolic_reject_reasons"] = symbolic_inner_door_stats.get("symbolic_reject_reasons", {})
+    for point in symbolic_inner_doors:
+        debug_stats["raw_symbolic_inner_door_candidates"].append(point)
+        debug_stats["raw_door_candidates"].append({"source": "symbolic_inner_door", **point})
+    raw_inner_doors.extend(symbolic_inner_doors)
+
+    gap_plus_symbol_doors: List[Dict[str, int]] = []
+    gap_reject_totals: Dict[str, int] = {}
+    gap_evaluations: List[Dict[str, Any]] = []
+    for line in inner_walls:
+        if line_length(line) < 60:
+            continue
+        gap_candidates, gap_stats = scan_inner_wall_gaps_with_symbol_support(
+            line=line,
+            wall_mask=inner_wall_mask,
+            symbol_mask=symbolic_inner_door_mask,
+            polygon_contour=outer_polygon_contour,
+            scale=scale,
+        )
+        for point in gap_stats.get("gap_candidates", []):
+            debug_stats["inner_wall_gap_candidates"].append({"host_line": line, **point})
+        for item in gap_stats.get("evaluations", []):
+            gap_evaluations.append(item)
+        for point in gap_candidates:
+            debug_stats["gap_plus_symbol_candidates"].append({"host_line": line, **point})
+            if any(hypot(point["x"] - existing["x"], point["y"] - existing["y"]) <= 24 for existing in symbolic_inner_doors):
+                continue
+            debug_stats["raw_door_candidates"].append({"source": "gap_plus_symbol", "host_line": line, **point})
+            gap_plus_symbol_doors.append(point)
+        for reason, count in gap_stats.get("reject_reasons", {}).items():
+            gap_reject_totals[reason] = gap_reject_totals.get(reason, 0) + int(count)
+
+    debug_stats["gap_reject_reasons"] = gap_reject_totals
+    raw_inner_doors.extend(gap_plus_symbol_doors)
 
     outer_segments = polygon_to_axis_aligned_segments(
         outer_polygon,
@@ -1696,24 +2345,50 @@ def detect_openings(
                     scale=scale,
                 )
                 if opening_type == "door":
-                    raw_doors.append(point)
+                    debug_stats["raw_door_candidates"].append({"source": "outer_segment_scan", "host_line": seg, **point})
+                    raw_outer_doors.append(point)
                 else:
+                    debug_stats["raw_window_candidates"].append({"source": "outer_segment_scan", "host_line": seg, **point})
                     raw_windows.append(point)
+            else:
+                reject("outer_candidate_not_near_polygon", point)
 
-    raw_doors = merge_opening_points(raw_doors, tol=28)
+    raw_inner_doors = merge_opening_points(raw_inner_doors, tol=28)
+    debug_stats["merged_inner_door_candidates"] = raw_inner_doors.copy()
+    raw_outer_doors = merge_opening_points(raw_outer_doors, tol=28)
     raw_windows = merge_opening_points(raw_windows, tol=24)
+    debug_stats["stages"]["raw_inner_doors_after_merge"] = len(raw_inner_doors)
+    debug_stats["stages"]["raw_outer_doors_after_merge"] = len(raw_outer_doors)
+    debug_stats["stages"]["raw_windows_after_merge"] = len(raw_windows)
 
-    hosted_doors = project_openings_to_host_lines(
-        raw_doors,
-        inner_walls,
-        max_distance=max(18, scale["max_wall_thickness"] * 2.0),
-        endpoint_tol=22,
-    )
+    hosted_inner_doors: List[Dict[str, int]] = []
+    door_host_distance = max(26, scale["max_wall_thickness"] * 2.8)
+    door_endpoint_tol = 12
+    for point in raw_inner_doors:
+        px, py = point["x"], point["y"]
+        host = find_best_host_line((px, py), inner_walls, max_distance=door_host_distance, min_t=0.04, max_t=0.96)
+        if host is None:
+            reject("door_no_host_line", point)
+            continue
+
+        line = host["line"]
+        proj = host["projection"]
+        if point_near_any_line_endpoint((int(proj["x"]), int(proj["y"])), [line], tol=door_endpoint_tol):
+            reject("door_projection_near_endpoint", {**point, "proj_x": int(round(proj["x"])), "proj_y": int(round(proj["y"]))})
+            continue
+
+        hosted_inner_doors.append({
+            "x": int(round(proj["x"])),
+            "y": int(round(proj["y"])),
+            "width": boosted_opening_width(int(point.get("width", 0)), scale, "door"),
+        })
+    debug_stats["stages"]["hosted_inner_doors_before_support"] = len(hosted_inner_doors)
 
     supported_hosted_doors: List[Dict[str, int]] = []
-    for door in hosted_doors:
-        host = find_best_host_line((door["x"], door["y"]), inner_walls, max_distance=max(18, scale["max_wall_thickness"] * 2.0))
+    for door in hosted_inner_doors:
+        host = find_best_host_line((door["x"], door["y"]), inner_walls, max_distance=door_host_distance, min_t=0.04, max_t=0.96)
         if host is None:
+            reject("door_lost_host_after_projection", door)
             continue
 
         if opening_is_supported_by_rooms(
@@ -1724,17 +2399,50 @@ def detect_openings(
             scale=scale,
         ):
             supported_hosted_doors.append(door)
-    hosted_doors = supported_hosted_doors
+        else:
+            reject("door_failed_room_support", door)
+    hosted_inner_doors = supported_hosted_doors
+    debug_stats["stages"]["hosted_inner_doors_after_support"] = len(hosted_inner_doors)
+    debug_stats["inner_door_hosted_count"] = len(hosted_inner_doors)
 
-    hosted_windows = project_openings_to_host_lines(
-        raw_windows,
+    hosted_outer_doors = project_openings_to_host_lines(
+        raw_outer_doors,
         outer_segments,
-        max_distance=max(18, scale["max_wall_thickness"] * 2.1),
-        endpoint_tol=18,
+        max_distance=max(22, scale["max_wall_thickness"] * 2.6),
+        endpoint_tol=14,
+        min_t=0.04,
+        max_t=0.96,
     )
+    hosted_outer_doors = [
+        {
+            "x": int(door["x"]),
+            "y": int(door["y"]),
+            "width": boosted_opening_width(int(door.get("width", 0)), scale, "door"),
+        }
+        for door in hosted_outer_doors
+    ]
+    debug_stats["stages"]["hosted_outer_doors_before_merge"] = len(hosted_outer_doors)
 
-    hosted_doors = merge_opening_points(hosted_doors, tol=24)
+    hosted_windows: List[Dict[str, int]] = []
+    window_host_distance = max(18, scale["max_wall_thickness"] * 2.1)
+    for point in raw_windows:
+        px, py = point["x"], point["y"]
+        host = find_best_host_line((px, py), outer_segments, max_distance=window_host_distance, min_t=0.04, max_t=0.96)
+        if host is None:
+            reject("window_no_host_line", point)
+            continue
+        proj = host["projection"]
+        hosted_windows.append({
+            "x": int(round(proj["x"])),
+            "y": int(round(proj["y"])),
+            "width": boosted_opening_width(int(point.get("width", 0)), scale, "window"),
+        })
+    debug_stats["stages"]["hosted_windows_before_merge"] = len(hosted_windows)
+
+    hosted_doors = merge_opening_points(hosted_inner_doors + hosted_outer_doors, tol=24)
     hosted_windows = merge_opening_points(hosted_windows, tol=24)
+    debug_stats["stages"]["hosted_doors_after_merge"] = len(hosted_doors)
+    debug_stats["stages"]["hosted_windows_after_merge"] = len(hosted_windows)
 
     if len(hosted_windows) <= max(1, total_floors // 2):
         fallback_windows = collect_fallback_outer_windows(
@@ -1746,6 +2454,7 @@ def detect_openings(
             total_floors=total_floors,
             scale=scale,
         )
+        debug_stats["stages"]["fallback_windows"] = len(fallback_windows)
         hosted_windows = merge_opening_points(hosted_windows + fallback_windows, tol=24)
 
     cleaned_doors: List[Dict[str, int]] = []
@@ -1756,6 +2465,14 @@ def detect_openings(
         )
         if not too_close_to_window:
             cleaned_doors.append(door)
+        else:
+            reject("door_too_close_to_window", door)
+
+    debug_stats["filtered_door_candidates"] = cleaned_doors
+    debug_stats["filtered_window_candidates"] = hosted_windows
+    debug_stats["stages"]["final_door_count"] = len(cleaned_doors)
+    debug_stats["stages"]["final_window_count"] = len(hosted_windows)
+    debug_stats["gap_evaluations"] = gap_evaluations
 
     for d in cleaned_doors:
         cv2.circle(debug, (d["x"], d["y"]), 6, (0, 140, 255), -1)
@@ -1763,7 +2480,18 @@ def detect_openings(
     for w in hosted_windows:
         cv2.circle(debug, (w["x"], w["y"]), 6, (255, 0, 0), -1)
 
+    draw_gap_debug_artifacts(gap_evaluations, debug_img, structural_mask, symbolic_inner_door_mask)
     save_debug(project_debug_dir, floor_name, "openings_debug.png", debug)
+    floor_debug_dir = project_debug_dir / floor_name
+    floor_debug_dir.mkdir(parents=True, exist_ok=True)
+    (floor_debug_dir / "openings_stats.json").write_text(json.dumps(debug_stats, indent=2), encoding="utf-8")
+    print(
+        "[detect_openings] "
+        f"floor={floor_name} raw_doors={len(debug_stats['raw_door_candidates'])} "
+        f"raw_windows={len(debug_stats['raw_window_candidates'])} "
+        f"final_doors={len(cleaned_doors)} final_windows={len(hosted_windows)}"
+    )
+    print(f"[detect_openings] floor={floor_name} rejected_candidate_reasons={debug_stats['rejected_candidate_reasons']}")
     return cleaned_doors, hosted_windows
 
 
