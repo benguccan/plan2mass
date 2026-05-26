@@ -62,9 +62,9 @@ function createLocalDemoProject(floorHeight = 3.2) {
     stairs: [
       {
         id: "f1-stair-1",
-        bounds: [220, 48, 320, 100],
+        bounds: [228, 52, 312, 88],
         direction: "down",
-        steps: 6,
+        steps: 5,
       },
     ],
     rooms: [
@@ -100,9 +100,9 @@ function createLocalDemoProject(floorHeight = 3.2) {
     stairs: [
       {
         id: "f2-stair-1",
-        bounds: [230, 48, 330, 102],
+        bounds: [238, 52, 322, 90],
         direction: "down",
-        steps: 6,
+        steps: 5,
       },
     ],
     rooms: [
@@ -141,9 +141,9 @@ function createLocalDemoProject(floorHeight = 3.2) {
     stairs: [
       {
         id: "f3-stair-1",
-        bounds: [215, 48, 315, 100],
+        bounds: [223, 52, 307, 88],
         direction: "down",
-        steps: 6,
+        steps: 5,
       },
     ],
     rooms: [

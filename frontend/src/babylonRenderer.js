@@ -644,6 +644,10 @@ function createBuildingMaterialVariant(scene, materials, environmentTexture) {
       environmentIntensity: 0.55,
     }),
     glass: enhancedGlass,
+    windowMetal: materials.metal,
+    windowGlass: materials.glass,
+    windowSill: materials.slab,
+    windowRecess: materials.fallback,
   }
 
   if (buildingMaterials.exteriorWall) buildingMaterials.exteriorWall.albedoTexture = buildingFacadeTexture
@@ -1182,13 +1186,14 @@ function createWindow(scene, parent, shadowGenerator, materials, geometryMeta, o
   group.position = new Vector3(center.x, yBase, center.z)
   group.rotation = new Vector3(0, angle, 0)
 
-  const buildingMode = Boolean(options.buildingMode)
   const frameDepth = Math.max(0.06, thickness * 0.22)
-  const frameThickness = buildingMode ? 0.06 : 0.05
+  const frameThickness = 0.05
   const paneDepth = Math.max(0.03, thickness * 0.06)
   const facadeOffset = thickness * 0.62
-  const trimMaterial = materials.facadeAccent || materials.slab || materials.fallback
-  const revealDepth = Math.max(0.06, thickness * 0.2)
+  const windowMetal = materials.windowMetal || materials.metal
+  const windowGlass = materials.windowGlass || materials.glass
+  const windowSill = materials.windowSill || materials.slab
+  const windowRecess = materials.windowRecess || materials.fallback
 
   ;[-1, 1].forEach((side) => {
     const z = facadeOffset * side
@@ -1199,58 +1204,35 @@ function createWindow(scene, parent, shadowGenerator, materials, geometryMeta, o
       depth: Math.max(0.06, thickness * 0.16),
     }, scene)
     recess.position = new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z - side * 0.02)
-    recess.material = materials.fallback
+    recess.material = windowRecess
     recess.visibility = 0.22
     recess.parent = group
-
-    if (buildingMode) {
-      createBox(scene, `window-surround-top-${side}`, {
-        width: width + 0.26,
-        height: 0.06,
-        depth: revealDepth,
-      }, new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT + 0.045, z + side * 0.025), trimMaterial, shadowGenerator, group)
-      createBox(scene, `window-surround-bottom-${side}`, {
-        width: width + 0.26,
-        height: 0.05,
-        depth: revealDepth,
-      }, new Vector3(0, WINDOW_SILL_HEIGHT - 0.055, z + side * 0.025), trimMaterial, shadowGenerator, group)
-      createBox(scene, `window-surround-left-${side}`, {
-        width: 0.05,
-        height: WINDOW_HEIGHT + 0.16,
-        depth: revealDepth,
-      }, new Vector3(-width / 2 - 0.08, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z + side * 0.025), trimMaterial, shadowGenerator, group)
-      createBox(scene, `window-surround-right-${side}`, {
-        width: 0.05,
-        height: WINDOW_HEIGHT + 0.16,
-        depth: revealDepth,
-      }, new Vector3(width / 2 + 0.08, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z + side * 0.025), trimMaterial, shadowGenerator, group)
-    }
 
     createBox(scene, `window-frame-top-${side}`, {
       width,
       height: frameThickness,
       depth: frameDepth,
-    }, new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT - frameThickness / 2, z), materials.metal, shadowGenerator, group)
+    }, new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT - frameThickness / 2, z), windowMetal, shadowGenerator, group)
     createBox(scene, `window-frame-bottom-${side}`, {
       width,
       height: frameThickness,
       depth: frameDepth,
-    }, new Vector3(0, WINDOW_SILL_HEIGHT + frameThickness / 2, z), materials.metal, shadowGenerator, group)
+    }, new Vector3(0, WINDOW_SILL_HEIGHT + frameThickness / 2, z), windowMetal, shadowGenerator, group)
     createBox(scene, `window-frame-left-${side}`, {
       width: frameThickness,
       height: WINDOW_HEIGHT,
       depth: frameDepth,
-    }, new Vector3(-width / 2 + frameThickness / 2, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z), materials.metal, shadowGenerator, group)
+    }, new Vector3(-width / 2 + frameThickness / 2, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z), windowMetal, shadowGenerator, group)
     createBox(scene, `window-frame-right-${side}`, {
       width: frameThickness,
       height: WINDOW_HEIGHT,
       depth: frameDepth,
-    }, new Vector3(width / 2 - frameThickness / 2, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z), materials.metal, shadowGenerator, group)
+    }, new Vector3(width / 2 - frameThickness / 2, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z), windowMetal, shadowGenerator, group)
     createBox(scene, `window-mullion-${side}`, {
-      width: buildingMode ? 0.04 : 0.03,
+      width: 0.03,
       height: WINDOW_HEIGHT - 0.02,
       depth: frameDepth * 0.9,
-    }, new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z), materials.metal, shadowGenerator, group)
+    }, new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z), windowMetal, shadowGenerator, group)
 
     const glass = MeshBuilder.CreateBox(`window-glass-${side}`, {
       width: width - frameThickness * 2,
@@ -1258,40 +1240,16 @@ function createWindow(scene, parent, shadowGenerator, materials, geometryMeta, o
       depth: paneDepth,
     }, scene)
     glass.position = new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, z - side * 0.015)
-    glass.material = materials.glass
+    glass.material = windowGlass
     glass.parent = group
     glass.receiveShadows = true
 
     createBox(scene, `window-sill-${side}`, {
-      width: width + (buildingMode ? 0.3 : 0.24),
-      height: buildingMode ? 0.055 : 0.045,
-      depth: buildingMode ? 0.2 : 0.18,
-    }, new Vector3(0, WINDOW_SILL_HEIGHT - 0.04, z + side * 0.04), materials.slab, shadowGenerator, group)
+      width: width + 0.24,
+      height: 0.045,
+      depth: 0.18,
+    }, new Vector3(0, WINDOW_SILL_HEIGHT - 0.04, z + side * 0.04), windowSill, shadowGenerator, group)
   })
-
-  if (buildingMode && materials.interiorGlow) {
-    const glow = MeshBuilder.CreateBox("window-interior-glow", {
-      width: Math.max(0.5, width - 0.14),
-      height: WINDOW_HEIGHT - 0.12,
-      depth: Math.max(0.04, thickness * 0.08),
-    }, scene)
-    glow.position = new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, 0)
-    glow.material = materials.interiorGlow
-    glow.visibility = 0.58
-    glow.parent = group
-  }
-
-  if (buildingMode) {
-    const shadowPlate = MeshBuilder.CreateBox("window-shadow-plate", {
-      width: Math.max(0.5, width + 0.18),
-      height: WINDOW_HEIGHT + 0.12,
-      depth: Math.max(0.03, thickness * 0.08),
-    }, scene)
-    shadowPlate.position = new Vector3(0, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, facadeOffset + 0.012)
-    shadowPlate.material = materials.metal || materials.fallback
-    shadowPlate.visibility = 0.12
-    shadowPlate.parent = group
-  }
 
   return group
 }
@@ -1439,7 +1397,7 @@ function createStairCore(scene, parent, shadowGenerator, materials, geometryMeta
   const depth = Math.max(0.4, maxZ - minZ)
   const steps = Math.max(2, stair.steps || 6)
   const treadDepth = depth / steps
-  const riseHeight = Math.min(0.24, Math.max(0.14, floorHeight * 0.085))
+  const riseHeight = Math.min(0.18, Math.max(0.1, floorHeight * 0.055))
   const core = new TransformNode(stair.id || "stair-core", scene)
   core.parent = parent
 
