@@ -335,13 +335,100 @@ def remove_duplicate_lines(lines: List[List[int]], coord_tol: int = 8, length_to
     return unique
 
 
-def merge_collinear_lines(lines: List[List[int]], pos_tol: int = 10, gap_tol: int = 16) -> List[List[int]]:
+def merge_collinear_lines(
+    lines: List[List[int]],
+    pos_tol: int = 10,
+    gap_tol: int = 16,
+    return_stats: bool = False,
+) -> Any:
     if not lines:
-        return []
+        empty_stats = {
+            "junction_points_count": 0,
+            "merge_skipped_due_to_junction": 0,
+            "merge_allowed_simple_collinear": 0,
+            "preserved_short_connectors": 0,
+        }
+        return ([], empty_stats) if return_stats else []
 
     normalized = [normalize_line(line) for line in lines]
     horiz = [x for x in normalized if x["orientation"] == "h"]
     vert = [x for x in normalized if x["orientation"] == "v"]
+    stats = {
+        "junction_points_count": 0,
+        "merge_skipped_due_to_junction": 0,
+        "merge_allowed_simple_collinear": 0,
+        "preserved_short_connectors": 0,
+    }
+
+    junction_tol = max(8, pos_tol + 2)
+    connector_length_tol = max(58, gap_tol * 4)
+    junction_points: set[Tuple[int, int]] = set()
+
+    def normalized_length(item: Dict[str, Any]) -> int:
+        return int(item["end"] - item["start"])
+
+    def item_endpoints(item: Dict[str, Any]) -> List[Tuple[int, int]]:
+        if item["orientation"] == "h":
+            return [(int(item["start"]), int(item["fixed"])), (int(item["end"]), int(item["fixed"]))]
+        return [(int(item["fixed"]), int(item["start"])), (int(item["fixed"]), int(item["end"]))]
+
+    def point_hits_item_body(point: Tuple[int, int], item: Dict[str, Any], tol: int, endpoint_margin: int = 6) -> bool:
+        px, py = point
+        if item["orientation"] == "h":
+            if abs(py - int(item["fixed"])) > tol:
+                return False
+            return int(item["start"]) + endpoint_margin < px < int(item["end"]) - endpoint_margin
+        if abs(px - int(item["fixed"])) > tol:
+            return False
+        return int(item["start"]) + endpoint_margin < py < int(item["end"]) - endpoint_margin
+
+    def has_external_connection(
+        point: Tuple[int, int],
+        item_a: Dict[str, Any],
+        item_b: Dict[str, Any],
+        orthogonal_only: bool = True,
+    ) -> bool:
+        for other in normalized:
+            if other is item_a or other is item_b:
+                continue
+            if orthogonal_only and other["orientation"] == item_a["orientation"]:
+                continue
+            other_endpoints = item_endpoints(other)
+            if any(points_close(point, other_pt, junction_tol) for other_pt in other_endpoints):
+                return True
+            if point_hits_item_body(point, other, junction_tol):
+                return True
+        return False
+
+    def count_endpoint_connections(
+        item: Dict[str, Any],
+        ignore: Optional[Tuple[Dict[str, Any], Dict[str, Any]]] = None,
+        orthogonal_only: bool = True,
+    ) -> int:
+        ignored_ids = {id(x) for x in (ignore or ())}
+        connections = 0
+        for endpoint in item_endpoints(item):
+            endpoint_connected = False
+            for other in normalized:
+                if other is item or id(other) in ignored_ids:
+                    continue
+                if orthogonal_only and other["orientation"] == item["orientation"]:
+                    continue
+                if any(points_close(endpoint, other_pt, junction_tol) for other_pt in item_endpoints(other)):
+                    endpoint_connected = True
+                    break
+                if point_hits_item_body(endpoint, other, junction_tol):
+                    endpoint_connected = True
+                    break
+            if endpoint_connected:
+                connections += 1
+        return connections
+
+    for item in normalized:
+        for endpoint in item_endpoints(item):
+            if has_external_connection(endpoint, item, item, orthogonal_only=True):
+                junction_points.add(endpoint)
+    stats["junction_points_count"] = len(junction_points)
 
     def merge_group(group: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not group:
@@ -359,16 +446,53 @@ def merge_collinear_lines(lines: List[List[int]], pos_tol: int = 10, gap_tol: in
             same_axis = abs(item["fixed"] - last["fixed"]) <= pos_tol
             overlap_or_close = item["start"] <= last["end"] + gap_tol
 
-            if same_axis and overlap_or_close:
-                last["fixed"] = int(round((last["fixed"] + item["fixed"]) / 2))
-                last["start"] = min(last["start"], item["start"])
-                last["end"] = max(last["end"], item["end"])
-            else:
+            if not (same_axis and overlap_or_close):
                 merged.append(item.copy())
+                continue
+
+            candidate_gap = max(0, int(item["start"]) - int(last["end"]))
+            candidate_overlap = min(int(last["end"]), int(item["end"])) - max(int(last["start"]), int(item["start"]))
+
+            shared_points = [item_endpoints(last)[1], item_endpoints(item)[0]]
+            has_junction = any(
+                point in junction_points or has_external_connection(point, last, item, orthogonal_only=True)
+                for point in shared_points
+            )
+
+            if last["orientation"] == "h":
+                mid_point = (int(round((max(last["end"], item["start"]) + min(last["end"], item["start"])) / 2)), int(round((last["fixed"] + item["fixed"]) / 2)))
+            else:
+                mid_point = (int(round((last["fixed"] + item["fixed"]) / 2)), int(round((max(last["end"], item["start"]) + min(last["end"], item["start"])) / 2)))
+            if has_external_connection(mid_point, last, item, orthogonal_only=True):
+                has_junction = True
+
+            short_connector = (
+                normalized_length(last) <= connector_length_tol
+                or normalized_length(item) <= connector_length_tol
+                or candidate_gap > 0 and candidate_gap <= gap_tol
+                or candidate_overlap < max(10, gap_tol // 2)
+            )
+            if short_connector:
+                last_connections = count_endpoint_connections(last, ignore=(last, item), orthogonal_only=True)
+                item_connections = count_endpoint_connections(item, ignore=(last, item), orthogonal_only=True)
+                if last_connections >= 1 or item_connections >= 1:
+                    has_junction = True
+                    stats["preserved_short_connectors"] += 1
+
+            if has_junction:
+                stats["merge_skipped_due_to_junction"] += 1
+                merged.append(item.copy())
+                continue
+
+            stats["merge_allowed_simple_collinear"] += 1
+            last["fixed"] = int(round((last["fixed"] + item["fixed"]) / 2))
+            last["start"] = min(last["start"], item["start"])
+            last["end"] = max(last["end"], item["end"])
 
         return merged
 
-    return [denormalize_line(x) for x in (merge_group(horiz) + merge_group(vert))]
+    merged_lines = [denormalize_line(x) for x in (merge_group(horiz) + merge_group(vert))]
+    return (merged_lines, stats) if return_stats else merged_lines
 
 
 def simplify_polygon_points(points: List[List[int]], min_dist: int = 8) -> List[List[int]]:
@@ -1293,6 +1417,343 @@ def filter_symbolic_vertical_walls(
     return filtered, stats
 
 
+def filter_symbolic_line_clusters(
+    candidate_mask: np.ndarray,
+    polygon_np: np.ndarray,
+    scale: Dict[str, int],
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    filtered_mask = candidate_mask.copy()
+    removed_mask = np.zeros_like(candidate_mask)
+    stats: Dict[str, Any] = {
+        "symbolic_cluster_count": 0,
+        "stair_like_cluster_count": 0,
+        "removed_symbolic_pixels": 0,
+        "rejected_symbolic_clusters": 0,
+        "reject_reasons": {},
+        "clusters": [],
+    }
+
+    def reject(reason: str, info: Optional[Dict[str, Any]] = None) -> None:
+        stats["rejected_symbolic_clusters"] += 1
+        stats["reject_reasons"][reason] = stats["reject_reasons"].get(reason, 0) + 1
+        if info is not None:
+            stats["clusters"].append({"accepted": False, "reason": reason, **info})
+
+    num_labels, labels, cc_stats, _ = cv2.connectedComponentsWithStats(candidate_mask, connectivity=8)
+    min_line_len = max(16, int(round(scale["opening_min_gap"] * 0.55)))
+    max_line_len = max(52, int(round(scale["opening_max_gap"] * 1.15)))
+    min_cluster_lines = 4
+    regularity_tol = max(4.0, scale["min_wall_thickness"] * 1.5)
+    min_gap = max(5, scale["min_wall_thickness"])
+    max_gap = max(18, scale["max_wall_thickness"] * 4)
+    near_outer_tol = max(scale["outer_edge_offset"] * 2, scale["max_wall_thickness"] + 6)
+
+    for label in range(1, num_labels):
+        area = int(cc_stats[label, cv2.CC_STAT_AREA])
+        x = int(cc_stats[label, cv2.CC_STAT_LEFT])
+        y = int(cc_stats[label, cv2.CC_STAT_TOP])
+        w = int(cc_stats[label, cv2.CC_STAT_WIDTH])
+        h = int(cc_stats[label, cv2.CC_STAT_HEIGHT])
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+        info = {"bbox": [x, y, w, h], "area": area}
+
+        if area < max(18, scale["min_wall_thickness"] * 4):
+            reject("cluster_area_too_small", info)
+            continue
+        if w < min_line_len and h < min_line_len:
+            reject("cluster_bbox_too_small", info)
+            continue
+        if cv2.pointPolygonTest(polygon_np, (float(cx), float(cy)), True) < near_outer_tol:
+            reject("cluster_near_outer_polygon", info)
+            continue
+
+        component_mask = np.zeros_like(candidate_mask)
+        component_mask[labels == label] = 255
+        lines = cv2.HoughLinesP(
+            component_mask,
+            1,
+            np.pi / 180.0,
+            threshold=max(8, scale["opening_scan_step"] * 2),
+            minLineLength=min_line_len,
+            maxLineGap=max(4, scale["opening_scan_step"]),
+        )
+        if lines is None or len(lines) < min_cluster_lines:
+            reject("cluster_not_enough_lines", info)
+            continue
+
+        horizontal_positions: List[float] = []
+        vertical_positions: List[float] = []
+        horizontal_lengths: List[float] = []
+        vertical_lengths: List[float] = []
+
+        for raw in lines:
+            x1, y1, x2, y2 = [int(v) for v in raw[0]]
+            dx = x2 - x1
+            dy = y2 - y1
+            length = float(np.hypot(dx, dy))
+            if length < min_line_len or length > max_line_len:
+                continue
+            if abs(dy) <= max(3, scale["min_wall_thickness"]):
+                horizontal_positions.append((y1 + y2) / 2.0)
+                horizontal_lengths.append(length)
+            elif abs(dx) <= max(3, scale["min_wall_thickness"]):
+                vertical_positions.append((x1 + x2) / 2.0)
+                vertical_lengths.append(length)
+
+        dominant_orientation: Optional[str] = None
+        dominant_positions: List[float] = []
+        dominant_lengths: List[float] = []
+        if len(horizontal_positions) >= min_cluster_lines and len(horizontal_positions) >= len(vertical_positions):
+            dominant_orientation = "h"
+            dominant_positions = sorted(horizontal_positions)
+            dominant_lengths = horizontal_lengths
+        elif len(vertical_positions) >= min_cluster_lines:
+            dominant_orientation = "v"
+            dominant_positions = sorted(vertical_positions)
+            dominant_lengths = vertical_lengths
+        else:
+            reject("cluster_not_parallel_enough", {**info, "h_count": len(horizontal_positions), "v_count": len(vertical_positions)})
+            continue
+
+        if len(dominant_positions) < min_cluster_lines:
+            reject("cluster_not_enough_parallel_lines", {**info, "orientation": dominant_orientation})
+            continue
+
+        gaps = [dominant_positions[i + 1] - dominant_positions[i] for i in range(len(dominant_positions) - 1)]
+        usable_gaps = [gap for gap in gaps if gap > 0]
+        if len(usable_gaps) < min_cluster_lines - 1:
+            reject("cluster_gap_count_too_small", {**info, "orientation": dominant_orientation})
+            continue
+
+        median_gap = float(np.median(usable_gaps))
+        mean_gap = float(np.mean(usable_gaps))
+        if median_gap < min_gap or median_gap > max_gap:
+            reject("cluster_gap_out_of_range", {**info, "orientation": dominant_orientation, "median_gap": median_gap})
+            continue
+        if float(np.std(usable_gaps)) > regularity_tol:
+            reject("cluster_gap_irregular", {**info, "orientation": dominant_orientation, "gaps": usable_gaps})
+            continue
+
+        if dominant_lengths:
+            median_length = float(np.median(dominant_lengths))
+            if median_length > max_line_len:
+                reject("cluster_line_length_too_large", {**info, "orientation": dominant_orientation, "median_length": median_length})
+                continue
+            if any(abs(length - median_length) > max(12.0, median_length * 0.45) for length in dominant_lengths):
+                reject("cluster_line_length_irregular", {**info, "orientation": dominant_orientation, "median_length": median_length})
+                continue
+
+        stats["symbolic_cluster_count"] += 1
+        stats["stair_like_cluster_count"] += 1
+        removed_mask[component_mask > 0] = 255
+        filtered_mask[component_mask > 0] = 0
+        stats["clusters"].append(
+            {
+                "accepted": True,
+                "kind": "stair_like_parallel_cluster",
+                "bbox": [x, y, w, h],
+                "area": area,
+                "orientation": dominant_orientation,
+                "line_count": len(dominant_positions),
+                "median_gap": round(median_gap, 3),
+                "mean_gap": round(mean_gap, 3),
+            }
+        )
+
+    stats["removed_symbolic_pixels"] = int(np.sum(removed_mask > 0))
+    return filtered_mask, removed_mask, stats
+
+
+def filter_repeated_line_patterns(
+    candidate_mask: np.ndarray,
+    polygon_np: np.ndarray,
+    scale: Dict[str, int],
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    filtered_mask = candidate_mask.copy()
+    removed_mask = np.zeros_like(candidate_mask)
+    stats: Dict[str, Any] = {
+        "repeated_line_pattern_count": 0,
+        "removed_repeated_line_pixels": 0,
+        "rejected_repeated_patterns": 0,
+        "reject_reasons": {},
+        "patterns": [],
+    }
+
+    def reject(reason: str, info: Optional[Dict[str, Any]] = None) -> None:
+        stats["rejected_repeated_patterns"] += 1
+        stats["reject_reasons"][reason] = stats["reject_reasons"].get(reason, 0) + 1
+        if info is not None:
+            stats["patterns"].append({"accepted": False, "reason": reason, **info})
+
+    min_len = max(18, int(round(scale["opening_min_gap"] * 0.6)))
+    max_len = max(64, int(round(scale["opening_max_gap"] * 0.85)))
+    h, w = candidate_mask.shape[:2]
+    lines = cv2.HoughLinesP(
+        candidate_mask,
+        1,
+        np.pi / 180.0,
+        threshold=max(12, scale["opening_scan_step"] * 3),
+        minLineLength=min_len,
+        maxLineGap=max(5, scale["opening_scan_step"]),
+    )
+    if lines is None:
+        return filtered_mask, removed_mask, stats
+
+    short_lines: List[Dict[str, Any]] = []
+    tol_axis = max(4, scale["max_wall_thickness"])
+    for raw in lines:
+        x1, y1, x2, y2 = [int(v) for v in raw[0]]
+        dx = x2 - x1
+        dy = y2 - y1
+        length = float(np.hypot(dx, dy))
+        if length < min_len or length > max_len:
+            continue
+        if abs(dy) <= tol_axis:
+            short_lines.append(
+                {
+                    "orientation": "h",
+                    "coords": [min(x1, x2), int(round((y1 + y2) / 2)), max(x1, x2), int(round((y1 + y2) / 2))],
+                    "position": float((y1 + y2) / 2.0),
+                    "span_start": float(min(x1, x2)),
+                    "span_end": float(max(x1, x2)),
+                    "length": length,
+                }
+            )
+        elif abs(dx) <= tol_axis:
+            short_lines.append(
+                {
+                    "orientation": "v",
+                    "coords": [int(round((x1 + x2) / 2)), min(y1, y2), int(round((x1 + x2) / 2)), max(y1, y2)],
+                    "position": float((x1 + x2) / 2.0),
+                    "span_start": float(min(y1, y2)),
+                    "span_end": float(max(y1, y2)),
+                    "length": length,
+                }
+            )
+
+    if not short_lines:
+        return filtered_mask, removed_mask, stats
+
+    min_cluster_lines = 4
+    near_outer_tol = max(scale["outer_edge_offset"] * 2, scale["max_wall_thickness"] + 6)
+    min_gap = max(5.0, float(scale["min_wall_thickness"]))
+    max_gap = max(18.0, float(scale["max_wall_thickness"] * 4))
+    max_span_mismatch = max(14.0, float(scale["opening_min_gap"]))
+    regularity_tol = max(4.0, float(scale["min_wall_thickness"] * 1.6))
+
+    long_h_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT,
+        (max(max_len + 10, scale["opening_max_gap"]), 1),
+    )
+    long_v_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT,
+        (1, max(max_len + 10, scale["opening_max_gap"])),
+    )
+    long_support = cv2.bitwise_or(
+        cv2.morphologyEx(candidate_mask, cv2.MORPH_OPEN, long_h_kernel),
+        cv2.morphologyEx(candidate_mask, cv2.MORPH_OPEN, long_v_kernel),
+    )
+
+    used: set[int] = set()
+    for orientation in ("h", "v"):
+        oriented = [line for line in short_lines if line["orientation"] == orientation]
+        for idx, base in enumerate(oriented):
+            if idx in used:
+                continue
+            cluster = [idx]
+            used.add(idx)
+            for j in range(idx + 1, len(oriented)):
+                if j in used:
+                    continue
+                candidate = oriented[j]
+                span_overlap = min(base["span_end"], candidate["span_end"]) - max(base["span_start"], candidate["span_start"])
+                if span_overlap < min(base["length"], candidate["length"]) * 0.45:
+                    continue
+                if abs(base["span_start"] - candidate["span_start"]) > max_span_mismatch:
+                    continue
+                if abs(base["span_end"] - candidate["span_end"]) > max_span_mismatch:
+                    continue
+                cluster.append(j)
+                used.add(j)
+
+            if len(cluster) < min_cluster_lines:
+                reject("pattern_not_enough_parallel_lines", {"orientation": orientation, "line_count": len(cluster)})
+                continue
+
+            cluster_lines = [oriented[i] for i in cluster]
+            positions = sorted(line["position"] for line in cluster_lines)
+            lengths = [line["length"] for line in cluster_lines]
+            gaps = [positions[i + 1] - positions[i] for i in range(len(positions) - 1)]
+            if not gaps:
+                reject("pattern_missing_gaps", {"orientation": orientation, "line_count": len(cluster_lines)})
+                continue
+            median_gap = float(np.median(gaps))
+            if median_gap < min_gap or median_gap > max_gap:
+                reject("pattern_gap_out_of_range", {"orientation": orientation, "median_gap": round(median_gap, 3), "line_count": len(cluster_lines)})
+                continue
+            if float(np.std(gaps)) > regularity_tol:
+                reject("pattern_gap_irregular", {"orientation": orientation, "gaps": [round(v, 3) for v in gaps]})
+                continue
+
+            median_length = float(np.median(lengths))
+            if any(abs(length - median_length) > max(12.0, median_length * 0.35) for length in lengths):
+                reject("pattern_length_irregular", {"orientation": orientation, "median_length": round(median_length, 3)})
+                continue
+
+            xs: List[float] = []
+            ys: List[float] = []
+            for line in cluster_lines:
+                x1, y1, x2, y2 = line["coords"]
+                xs.extend([x1, x2])
+                ys.extend([y1, y2])
+            min_x = max(0, int(np.floor(min(xs) - scale["max_wall_thickness"] * 2)))
+            max_x = min(w - 1, int(np.ceil(max(xs) + scale["max_wall_thickness"] * 2)))
+            min_y = max(0, int(np.floor(min(ys) - scale["max_wall_thickness"] * 2)))
+            max_y = min(h - 1, int(np.ceil(max(ys) + scale["max_wall_thickness"] * 2)))
+            center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+            if cv2.pointPolygonTest(polygon_np, center, True) < near_outer_tol:
+                reject("pattern_near_outer_polygon", {"orientation": orientation, "bbox": [min_x, min_y, max_x - min_x + 1, max_y - min_y + 1]})
+                continue
+
+            bbox_w = max_x - min_x + 1
+            bbox_h = max_y - min_y + 1
+            if orientation == "h":
+                if bbox_h > max_gap * (len(cluster_lines) + 2) or bbox_w > median_length * 1.6:
+                    reject("pattern_bbox_too_large", {"orientation": orientation, "bbox": [min_x, min_y, bbox_w, bbox_h]})
+                    continue
+            else:
+                if bbox_w > max_gap * (len(cluster_lines) + 2) or bbox_h > median_length * 1.6:
+                    reject("pattern_bbox_too_large", {"orientation": orientation, "bbox": [min_x, min_y, bbox_w, bbox_h]})
+                    continue
+
+            local_candidate = filtered_mask[min_y:max_y + 1, min_x:max_x + 1]
+            local_long_support = long_support[min_y:max_y + 1, min_x:max_x + 1]
+            removable_local = cv2.bitwise_and(local_candidate, cv2.bitwise_not(local_long_support))
+            removed_pixels = int(np.sum(removable_local > 0))
+            if removed_pixels < max(20, scale["min_wall_thickness"] * 6):
+                reject("pattern_not_enough_removable_pixels", {"orientation": orientation, "removed_pixels": removed_pixels})
+                continue
+
+            removed_mask[min_y:max_y + 1, min_x:max_x + 1][removable_local > 0] = 255
+            filtered_mask[min_y:max_y + 1, min_x:max_x + 1][removable_local > 0] = 0
+            stats["repeated_line_pattern_count"] += 1
+            stats["patterns"].append(
+                {
+                    "accepted": True,
+                    "orientation": orientation,
+                    "bbox": [min_x, min_y, bbox_w, bbox_h],
+                    "line_count": len(cluster_lines),
+                    "median_gap": round(median_gap, 3),
+                    "median_length": round(median_length, 3),
+                    "removed_pixels": removed_pixels,
+                }
+            )
+
+    stats["removed_repeated_line_pixels"] = int(np.sum(removed_mask > 0))
+    return filtered_mask, removed_mask, stats
+
+
 def draw_lines_mask(shape: Tuple[int, int], lines: List[List[int]], thickness: int) -> np.ndarray:
     mask = np.zeros(shape, dtype=np.uint8)
     for x1, y1, x2, y2 in lines:
@@ -1311,6 +1772,8 @@ def estimate_rooms(
 ) -> List[Dict[str, int]]:
     room_mask = np.zeros(mask_shape, dtype=np.uint8)
     cv2.fillPoly(room_mask, [polygon_np], 255)
+    polygon_mask = np.zeros(mask_shape, dtype=np.uint8)
+    cv2.fillPoly(polygon_mask, [polygon_np], 255)
 
     wall_mask = draw_lines_mask(
         mask_shape,
@@ -1319,7 +1782,8 @@ def estimate_rooms(
     )
     room_mask[wall_mask > 0] = 0
 
-    # Temporarily close door openings so adjacent rooms are less likely to merge.
+    # Door points represent openings between rooms; for room segmentation they must
+    # act as temporary barriers instead of reconnecting the free-space mask.
     if doors:
         door_close_mask = np.zeros(mask_shape, dtype=np.uint8)
         close_thickness = max(scale["max_wall_thickness"] + 6, scale["opening_min_gap"] // 2)
@@ -1327,15 +1791,10 @@ def estimate_rooms(
             cx, cy = int(door["x"]), int(door["y"])
             cv2.circle(door_close_mask, (cx, cy), close_thickness // 2, 255, -1)
 
-        room_mask = cv2.bitwise_or(room_mask, door_close_mask)
-        room_mask = cv2.bitwise_and(room_mask, cv2.fillPoly(np.zeros(mask_shape, dtype=np.uint8), [polygon_np], 255))
+        room_mask[door_close_mask > 0] = 0
+        room_mask = cv2.bitwise_and(room_mask, polygon_mask)
 
-    room_mask = cv2.morphologyEx(
-        room_mask,
-        cv2.MORPH_CLOSE,
-        cv2.getStructuringElement(cv2.MORPH_RECT, (max(5, scale["opening_min_gap"] // 3), max(5, scale["opening_min_gap"] // 3))),
-        iterations=1,
-    )
+    room_mask = cv2.bitwise_and(room_mask, polygon_mask)
     room_mask = cv2.morphologyEx(room_mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8), iterations=1)
 
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(room_mask, connectivity=8)
@@ -1417,11 +1876,54 @@ def extract_inner_walls(
         polygon_np,
         scale,
     )
+    inner_candidates, symbolic_removed_mask, symbolic_cluster_stats = filter_symbolic_line_clusters(
+        inner_candidates,
+        polygon_np,
+        scale,
+    )
+    debug_stats["symbolic_cluster_count"] = int(symbolic_cluster_stats.get("symbolic_cluster_count", 0))
+    debug_stats["stair_like_cluster_count"] = int(symbolic_cluster_stats.get("stair_like_cluster_count", 0))
+    debug_stats["removed_symbolic_pixels"] = int(symbolic_cluster_stats.get("removed_symbolic_pixels", 0))
+    debug_stats["rejected_symbolic_clusters"] = int(symbolic_cluster_stats.get("rejected_symbolic_clusters", 0))
+    if symbolic_cluster_stats.get("reject_reasons"):
+        merge_reasons(symbolic_cluster_stats["reject_reasons"])
+    debug_stats["symbolic_cluster_debug"] = symbolic_cluster_stats.get("clusters", [])
+    debug_stats["stages"]["after_symbolic_cluster_filter"] = int(np.count_nonzero(inner_candidates > 0))
+
+    inner_candidates, repeated_removed_mask, repeated_pattern_stats = filter_repeated_line_patterns(
+        inner_candidates,
+        polygon_np,
+        scale,
+    )
+    debug_stats["repeated_line_pattern_count"] = int(repeated_pattern_stats.get("repeated_line_pattern_count", 0))
+    debug_stats["removed_repeated_line_pixels"] = int(repeated_pattern_stats.get("removed_repeated_line_pixels", 0))
+    debug_stats["rejected_repeated_patterns"] = int(repeated_pattern_stats.get("rejected_repeated_patterns", 0))
+    if repeated_pattern_stats.get("reject_reasons"):
+        merge_reasons(repeated_pattern_stats["reject_reasons"])
+    debug_stats["repeated_pattern_debug"] = repeated_pattern_stats.get("patterns", [])
+    debug_stats["stages"]["after_repeated_line_filter"] = int(np.count_nonzero(inner_candidates > 0))
+
+    hk = scale["horizontal_kernel"]
+    vk = scale["vertical_kernel"]
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (hk, 1))
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, vk))
+
+    horizontal_mask = cv2.morphologyEx(inner_candidates, cv2.MORPH_OPEN, horizontal_kernel)
+    vertical_mask = cv2.morphologyEx(inner_candidates, cv2.MORPH_OPEN, vertical_kernel)
+    horizontal_mask = cv2.morphologyEx(horizontal_mask, cv2.MORPH_CLOSE, np.ones((9, 3), np.uint8), iterations=1)
+    vertical_mask = cv2.morphologyEx(vertical_mask, cv2.MORPH_CLOSE, np.ones((3, 9), np.uint8), iterations=1)
+    combined_mask = cv2.bitwise_or(horizontal_mask, vertical_mask)
 
     save_debug(project_debug_dir, floor_name, "inner_candidates.png", inner_candidates)
     save_debug(project_debug_dir, floor_name, "horizontal_walls_mask.png", horizontal_mask)
     save_debug(project_debug_dir, floor_name, "vertical_walls_mask.png", vertical_mask)
     save_debug(project_debug_dir, floor_name, "combined_walls_mask.png", combined_mask)
+    symbol_overlay = debug_img.copy()
+    symbol_overlay[symbolic_removed_mask > 0] = (0, 0, 255)
+    save_debug(project_debug_dir, floor_name, "symbol_filter_overlay.png", symbol_overlay)
+    repeated_overlay = debug_img.copy()
+    repeated_overlay[repeated_removed_mask > 0] = (255, 0, 255)
+    save_debug(project_debug_dir, floor_name, "repeated_line_overlay.png", repeated_overlay)
 
     horizontal_segments, horizontal_stats = segments_from_oriented_mask(
         horizontal_mask, "h", polygon_np, inner_candidates, scale
@@ -1441,7 +1943,16 @@ def extract_inner_walls(
     wall_segments = collapse_parallel_double_lines(wall_segments, pair_tol=scale["pair_merge_tol"])
     debug_stats["stages"]["after_collapse_parallel_double_lines"] = int(len(wall_segments))
     collinear_gap_tol = max(14, min(scale["opening_max_gap"], 110))
-    wall_segments = merge_collinear_lines(wall_segments, pos_tol=8, gap_tol=collinear_gap_tol)
+    wall_segments, merge_stats_1 = merge_collinear_lines(
+        wall_segments,
+        pos_tol=8,
+        gap_tol=collinear_gap_tol,
+        return_stats=True,
+    )
+    debug_stats["junction_points_count"] = int(merge_stats_1.get("junction_points_count", 0))
+    debug_stats["merge_skipped_due_to_junction"] = int(merge_stats_1.get("merge_skipped_due_to_junction", 0))
+    debug_stats["merge_allowed_simple_collinear"] = int(merge_stats_1.get("merge_allowed_simple_collinear", 0))
+    debug_stats["preserved_short_connectors"] = int(merge_stats_1.get("preserved_short_connectors", 0))
     debug_stats["stages"]["after_merge_collinear_lines_1"] = int(len(wall_segments))
     wall_segments = remove_duplicate_lines(wall_segments, coord_tol=8, length_tol=12)
     debug_stats["stages"]["after_remove_duplicate_lines_1"] = int(len(wall_segments))
@@ -1462,7 +1973,16 @@ def extract_inner_walls(
     merge_reasons(symbolic_stats)
     debug_stats["stages"]["after_filter_symbolic_vertical_walls"] = int(len(wall_segments))
     debug_stats["stages"]["after_prune_spurious_inner_walls"] = int(len(wall_segments))
-    wall_segments = merge_collinear_lines(wall_segments, pos_tol=8, gap_tol=collinear_gap_tol)
+    wall_segments, merge_stats_2 = merge_collinear_lines(
+        wall_segments,
+        pos_tol=8,
+        gap_tol=collinear_gap_tol,
+        return_stats=True,
+    )
+    debug_stats["junction_points_count"] += int(merge_stats_2.get("junction_points_count", 0))
+    debug_stats["merge_skipped_due_to_junction"] += int(merge_stats_2.get("merge_skipped_due_to_junction", 0))
+    debug_stats["merge_allowed_simple_collinear"] += int(merge_stats_2.get("merge_allowed_simple_collinear", 0))
+    debug_stats["preserved_short_connectors"] += int(merge_stats_2.get("preserved_short_connectors", 0))
     debug_stats["stages"]["after_merge_collinear_lines_2"] = int(len(wall_segments))
     wall_segments = remove_duplicate_lines(wall_segments, coord_tol=8, length_tol=12)
     debug_stats["stages"]["after_remove_duplicate_lines_2"] = int(len(wall_segments))
