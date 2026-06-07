@@ -1,0 +1,273 @@
+{
+  "image_size": {
+    "width": 1402,
+    "height": 947
+  },
+  "polygon_point_count": 4,
+  "raw_inner_candidate_count": 26,
+  "filtered_inner_wall_count": 9,
+  "final_inner_wall_count": 7,
+  "door_count": 0,
+  "window_count": 7,
+  "room_count": 3,
+  "pipeline_step_names": [
+    "original_uploaded_image",
+    "preprocessed_binary_mask",
+    "outer_polygon_overlay",
+    "raw_inner_wall_candidates_overlay",
+    "filtered_inner_walls_overlay",
+    "final_inner_walls_overlay",
+    "openings_overlay",
+    "rooms_overlay",
+    "outer_boundary_rejected_overlay",
+    "axis_snapping_overlay"
+  ],
+  "outer_boundary_rejected_count": 0,
+  "outer_boundary_rejected_segments": [],
+  "axis_snap_enabled": true,
+  "axis_snap_tol": 40,
+  "axis_snap_cluster_count_vertical": 16,
+  "axis_snap_cluster_count_horizontal": 11,
+  "axis_grid_vertical": [
+    83,
+    154,
+    334,
+    412,
+    473,
+    577,
+    661,
+    733,
+    787,
+    885,
+    965,
+    1038,
+    1122,
+    1211,
+    1276,
+    1330
+  ],
+  "axis_grid_horizontal": [
+    58,
+    140,
+    226,
+    293,
+    367,
+    455,
+    576,
+    667,
+    771,
+    840,
+    897
+  ],
+  "axis_grid_scores": {
+    "v": [
+      {
+        "axis": 83,
+        "score": 1699.2,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 33
+      },
+      {
+        "axis": 154,
+        "score": 1458.0,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 104
+      },
+      {
+        "axis": 334,
+        "score": 1944.0,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 284
+      },
+      {
+        "axis": 412,
+        "score": 1809.925,
+        "support_segment_count": 2,
+        "strong_segment_count": 0,
+        "near_outer_distance": 362
+      },
+      {
+        "axis": 473,
+        "score": 689.975,
+        "support_segment_count": 2,
+        "strong_segment_count": 2,
+        "near_outer_distance": 423
+      },
+      {
+        "axis": 577,
+        "score": 1339.65,
+        "support_segment_count": 3,
+        "strong_segment_count": 0,
+        "near_outer_distance": 527
+      },
+      {
+        "axis": 661,
+        "score": 695.5,
+        "support_segment_count": 1,
+        "strong_segment_count": 0,
+        "near_outer_distance": 611
+      },
+      {
+        "axis": 733,
+        "score": 699.75,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 616
+      },
+      {
+        "axis": 787,
+        "score": 164.4,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 562
+      },
+      {
+        "axis": 885,
+        "score": 1985.4,
+        "support_segment_count": 3,
+        "strong_segment_count": 1,
+        "near_outer_distance": 464
+      },
+      {
+        "axis": 965,
+        "score": 1715.7,
+        "support_segment_count": 3,
+        "strong_segment_count": 1,
+        "near_outer_distance": 384
+      },
+      {
+        "axis": 1038,
+        "score": 438.225,
+        "support_segment_count": 3,
+        "strong_segment_count": 1,
+        "near_outer_distance": 311
+      },
+      {
+        "axis": 1122,
+        "score": 364.5,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 227
+      },
+      {
+        "axis": 1211,
+        "score": 1944.0,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 138
+      },
+      {
+        "axis": 1276,
+        "score": 1197.0,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 73
+      },
+      {
+        "axis": 1330,
+        "score": 1116.375,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 19
+      }
+    ],
+    "h": [
+      {
+        "axis": 58,
+        "score": 1810.95,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 26
+      },
+      {
+        "axis": 140,
+        "score": 1992.075,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 108
+      },
+      {
+        "axis": 226,
+        "score": 1445.4,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 194
+      },
+      {
+        "axis": 293,
+        "score": 1150.425,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 261
+      },
+      {
+        "axis": 367,
+        "score": 415.6,
+        "support_segment_count": 1,
+        "strong_segment_count": 0,
+        "near_outer_distance": 335
+      },
+      {
+        "axis": 455,
+        "score": 565.3,
+        "support_segment_count": 1,
+        "strong_segment_count": 1,
+        "near_outer_distance": 423
+      },
+      {
+        "axis": 576,
+        "score": 1043.825,
+        "support_segment_count": 2,
+        "strong_segment_count": 0,
+        "near_outer_distance": 340
+      },
+      {
+        "axis": 667,
+        "score": 394.025,
+        "support_segment_count": 2,
+        "strong_segment_count": 0,
+        "near_outer_distance": 249
+      },
+      {
+        "axis": 771,
+        "score": 1918.35,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 145
+      },
+      {
+        "axis": 840,
+        "score": 1367.1,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 76
+      },
+      {
+        "axis": 897,
+        "score": 1591.2,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 19
+      }
+    ]
+  },
+  "axis_snap_candidates": [],
+  "axis_snapped_segment_count": 0,
+  "axis_snap_aborted_reason": null,
+  "axis_snapped_segments_before_after": [],
+  "thresholds": {
+    "deskew_angle_deg": 0.0,
+    "horizontal_kernel": 52,
+    "vertical_kernel": 52,
+    "pair_merge_tol": 21,
+    "opening_min_gap": 22,
+    "opening_max_gap": 120,
+    "opening_scan_step": 5,
+    "outer_edge_offset": 15,
+    "collinear_gap_tol": 110,
+    "room_min_area": 1452
+  }
+}

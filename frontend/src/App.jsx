@@ -21,7 +21,7 @@ import {
   getProtectedButtonStyle,
 } from "./authGate"
 
-const API = "http://127.0.0.1:8010"
+const API = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 const AUTH_STORAGE_KEY = "plan2mass:auth-token"
 const LOCAL_AUTH_USERS_KEY = "plan2mass:local-auth-users"
 

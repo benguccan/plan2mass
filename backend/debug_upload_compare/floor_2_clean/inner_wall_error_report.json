@@ -1,0 +1,321 @@
+{
+  "floor_name": "floor_2_clean",
+  "expected_wall_count": 6,
+  "actual_wall_count": 7,
+  "expected_wall_analysis": [
+    {
+      "gt_segment": {
+        "x1": 180.0,
+        "y1": 40.0,
+        "x2": 180.0,
+        "y2": 195.0
+      },
+      "closest_actual_segment": {
+        "x1": 202.433,
+        "y1": 43.824,
+        "x2": 202.433,
+        "y2": 142.353
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 22.433,
+      "span_overlap_ratio": 1.0,
+      "actual_vs_gt_length": "shorter",
+      "actual_fragmented": true,
+      "nearby_actual_segments_for_same_gt": [
+        {
+          "x1": 202.433,
+          "y1": 43.824,
+          "x2": 202.433,
+          "y2": 142.353
+        },
+        {
+          "x1": 202.433,
+          "y1": 173.235,
+          "x2": 202.433,
+          "y2": 205.588
+        }
+      ],
+      "match_failure_reason": "fixed_axis_offset_too_high"
+    },
+    {
+      "gt_segment": {
+        "x1": 180.0,
+        "y1": 195.0,
+        "x2": 230.0,
+        "y2": 195.0
+      },
+      "closest_actual_segment": {
+        "x1": 199.738,
+        "y1": 204.118,
+        "x2": 280.57,
+        "y2": 204.118
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 9.118,
+      "span_overlap_ratio": 0.605,
+      "actual_vs_gt_length": "longer",
+      "actual_fragmented": false,
+      "nearby_actual_segments_for_same_gt": [
+        {
+          "x1": 199.738,
+          "y1": 204.118,
+          "x2": 280.57,
+          "y2": 204.118
+        }
+      ],
+      "match_failure_reason": "too_long"
+    },
+    {
+      "gt_segment": {
+        "x1": 230.0,
+        "y1": 195.0,
+        "x2": 230.0,
+        "y2": 300.0
+      },
+      "closest_actual_segment": {
+        "x1": 248.622,
+        "y1": 202.353,
+        "x2": 248.622,
+        "y2": 296.471
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 18.622,
+      "span_overlap_ratio": 1.0,
+      "actual_vs_gt_length": "similar",
+      "actual_fragmented": true,
+      "nearby_actual_segments_for_same_gt": [
+        {
+          "x1": 202.433,
+          "y1": 173.235,
+          "x2": 202.433,
+          "y2": 205.588
+        },
+        {
+          "x1": 248.622,
+          "y1": 202.353,
+          "x2": 248.622,
+          "y2": 296.471
+        }
+      ],
+      "match_failure_reason": "fixed_axis_offset_too_high"
+    },
+    {
+      "gt_segment": {
+        "x1": 360.0,
+        "y1": 40.0,
+        "x2": 360.0,
+        "y2": 300.0
+      },
+      "closest_actual_segment": {
+        "x1": 397.198,
+        "y1": 43.824,
+        "x2": 397.198,
+        "y2": 296.765
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 37.198,
+      "span_overlap_ratio": 1.0,
+      "actual_vs_gt_length": "similar",
+      "actual_fragmented": false,
+      "nearby_actual_segments_for_same_gt": [],
+      "match_failure_reason": "fixed_axis_offset_too_high"
+    },
+    {
+      "gt_segment": {
+        "x1": 230.0,
+        "y1": 195.0,
+        "x2": 360.0,
+        "y2": 195.0
+      },
+      "closest_actual_segment": {
+        "x1": 199.738,
+        "y1": 204.118,
+        "x2": 280.57,
+        "y2": 204.118
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 9.118,
+      "span_overlap_ratio": 0.626,
+      "actual_vs_gt_length": "shorter",
+      "actual_fragmented": true,
+      "nearby_actual_segments_for_same_gt": [
+        {
+          "x1": 199.738,
+          "y1": 204.118,
+          "x2": 280.57,
+          "y2": 204.118
+        },
+        {
+          "x1": 320.985,
+          "y1": 204.118,
+          "x2": 399.892,
+          "y2": 204.118
+        }
+      ],
+      "match_failure_reason": "too_short"
+    },
+    {
+      "gt_segment": {
+        "x1": 360.0,
+        "y1": 155.0,
+        "x2": 540.0,
+        "y2": 155.0
+      },
+      "closest_actual_segment": {
+        "x1": 394.888,
+        "y1": 164.706,
+        "x2": 535.381,
+        "y2": 164.706
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 9.706,
+      "span_overlap_ratio": 1.0,
+      "actual_vs_gt_length": "shorter",
+      "actual_fragmented": false,
+      "nearby_actual_segments_for_same_gt": [
+        {
+          "x1": 394.888,
+          "y1": 164.706,
+          "x2": 535.381,
+          "y2": 164.706
+        }
+      ],
+      "match_failure_reason": "too_short"
+    }
+  ],
+  "actual_wall_analysis": [
+    {
+      "actual_segment": {
+        "x1": 394.888,
+        "y1": 164.706,
+        "x2": 535.381,
+        "y2": 164.706
+      },
+      "classification": "true_candidate_near_gt",
+      "closest_gt": {
+        "x1": 360.0,
+        "y1": 155.0,
+        "x2": 540.0,
+        "y2": 155.0
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 9.706,
+      "span_overlap_ratio": 1.0
+    },
+    {
+      "actual_segment": {
+        "x1": 199.738,
+        "y1": 204.118,
+        "x2": 280.57,
+        "y2": 204.118
+      },
+      "classification": "true_candidate_near_gt",
+      "closest_gt": {
+        "x1": 180.0,
+        "y1": 195.0,
+        "x2": 230.0,
+        "y2": 195.0
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 9.118,
+      "span_overlap_ratio": 0.605
+    },
+    {
+      "actual_segment": {
+        "x1": 320.985,
+        "y1": 204.118,
+        "x2": 399.892,
+        "y2": 204.118
+      },
+      "classification": "true_candidate_near_gt",
+      "closest_gt": {
+        "x1": 230.0,
+        "y1": 195.0,
+        "x2": 360.0,
+        "y2": 195.0
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 9.118,
+      "span_overlap_ratio": 0.494
+    },
+    {
+      "actual_segment": {
+        "x1": 202.433,
+        "y1": 43.824,
+        "x2": 202.433,
+        "y2": 142.353
+      },
+      "classification": "fragmented_near_gt",
+      "closest_gt": {
+        "x1": 180.0,
+        "y1": 40.0,
+        "x2": 180.0,
+        "y2": 195.0
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 22.433,
+      "span_overlap_ratio": 1.0
+    },
+    {
+      "actual_segment": {
+        "x1": 202.433,
+        "y1": 173.235,
+        "x2": 202.433,
+        "y2": 205.588
+      },
+      "classification": "fragmented_near_gt",
+      "closest_gt": {
+        "x1": 180.0,
+        "y1": 40.0,
+        "x2": 180.0,
+        "y2": 195.0
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 22.433,
+      "span_overlap_ratio": 0.673
+    },
+    {
+      "actual_segment": {
+        "x1": 248.622,
+        "y1": 202.353,
+        "x2": 248.622,
+        "y2": 296.471
+      },
+      "classification": "shifted_from_gt",
+      "closest_gt": {
+        "x1": 230.0,
+        "y1": 195.0,
+        "x2": 230.0,
+        "y2": 300.0
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 18.622,
+      "span_overlap_ratio": 1.0
+    },
+    {
+      "actual_segment": {
+        "x1": 397.198,
+        "y1": 43.824,
+        "x2": 397.198,
+        "y2": 296.765
+      },
+      "classification": "shifted_from_gt",
+      "closest_gt": {
+        "x1": 360.0,
+        "y1": 40.0,
+        "x2": 360.0,
+        "y2": 300.0
+      },
+      "orientation_match": true,
+      "fixed_axis_offset": 37.198,
+      "span_overlap_ratio": 1.0
+    }
+  ],
+  "summary": {
+    "matched": 0,
+    "shifted": 6,
+    "fragmented": 0,
+    "missing": 0,
+    "extra_false_positive": 0
+  }
+}

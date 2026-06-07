@@ -1,0 +1,60 @@
+{
+  "image_size": {
+    "width": 1360,
+    "height": 977
+  },
+  "polygon_point_count": 10,
+  "raw_inner_candidate_count": 27,
+  "filtered_inner_wall_count": 8,
+  "final_inner_wall_count": 6,
+  "door_count": 3,
+  "window_count": 4,
+  "room_count": 3,
+  "pipeline_step_names": [
+    "original_uploaded_image",
+    "preprocessed_binary_mask",
+    "outer_polygon_overlay",
+    "raw_inner_wall_candidates_overlay",
+    "filtered_inner_walls_overlay",
+    "final_inner_walls_overlay",
+    "openings_overlay",
+    "rooms_overlay",
+    "outer_boundary_rejected_overlay",
+    "axis_snapping_overlay"
+  ],
+  "outer_boundary_rejected_count": 0,
+  "outer_boundary_rejected_segments": [],
+  "axis_snap_enabled": true,
+  "axis_snap_tol": 38,
+  "axis_snap_cluster_count_vertical": 5,
+  "axis_snap_cluster_count_horizontal": 3,
+  "axis_snapped_segment_count": 1,
+  "axis_snapped_segments_before_after": [
+    {
+      "before": [
+        624,
+        54,
+        624,
+        209
+      ],
+      "after": [
+        615,
+        54,
+        615,
+        209
+      ]
+    }
+  ],
+  "thresholds": {
+    "deskew_angle_deg": 0.0,
+    "horizontal_kernel": 54,
+    "vertical_kernel": 54,
+    "pair_merge_tol": 21,
+    "opening_min_gap": 22,
+    "opening_max_gap": 120,
+    "opening_scan_step": 5,
+    "outer_edge_offset": 16,
+    "collinear_gap_tol": 110,
+    "room_min_area": 1452
+  }
+}

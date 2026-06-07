@@ -1,0 +1,270 @@
+{
+  "raw_door_candidates": [
+    {
+      "source": "symbolic_inner_door",
+      "x": 852,
+      "y": 371,
+      "width": 20
+    },
+    {
+      "source": "symbolic_inner_door",
+      "x": 574,
+      "y": 422,
+      "width": 20
+    },
+    {
+      "source": "symbolic_inner_door",
+      "x": 600,
+      "y": 422,
+      "width": 38
+    },
+    {
+      "source": "symbolic_inner_door",
+      "x": 852,
+      "y": 691,
+      "width": 20
+    },
+    {
+      "source": "symbolic_inner_door",
+      "x": 390,
+      "y": 703,
+      "width": 21
+    },
+    {
+      "source": "outer_segment_scan",
+      "host_line": [
+        30,
+        30,
+        1113,
+        30
+      ],
+      "x": 615,
+      "y": 30,
+      "width": 65
+    },
+    {
+      "source": "outer_segment_scan",
+      "host_line": [
+        641,
+        884,
+        716,
+        884
+      ],
+      "x": 681,
+      "y": 884,
+      "width": 70
+    }
+  ],
+  "filtered_door_candidates": [
+    {
+      "x": 615,
+      "y": 30,
+      "width": 264
+    },
+    {
+      "x": 681,
+      "y": 884,
+      "width": 280
+    }
+  ],
+  "raw_window_candidates": [
+    {
+      "source": "outer_segment_scan",
+      "host_line": [
+        30,
+        30,
+        1113,
+        30
+      ],
+      "x": 205,
+      "y": 30,
+      "width": 65
+    },
+    {
+      "source": "outer_segment_scan",
+      "host_line": [
+        30,
+        30,
+        1113,
+        30
+      ],
+      "x": 1080,
+      "y": 30,
+      "width": 60
+    },
+    {
+      "source": "outer_segment_scan",
+      "host_line": [
+        30,
+        27,
+        30,
+        897
+      ],
+      "x": 30,
+      "y": 467,
+      "width": 65
+    },
+    {
+      "source": "outer_segment_scan",
+      "host_line": [
+        30,
+        898,
+        632,
+        898
+      ],
+      "x": 225,
+      "y": 898,
+      "width": 65
+    },
+    {
+      "source": "outer_segment_scan",
+      "host_line": [
+        716,
+        884,
+        716,
+        976
+      ],
+      "x": 716,
+      "y": 934,
+      "width": 85
+    }
+  ],
+  "filtered_window_candidates": [
+    {
+      "x": 205,
+      "y": 30,
+      "width": 264
+    },
+    {
+      "x": 30,
+      "y": 467,
+      "width": 264
+    },
+    {
+      "x": 225,
+      "y": 898,
+      "width": 264
+    },
+    {
+      "x": 716,
+      "y": 934,
+      "width": 340
+    }
+  ],
+  "rejected_candidate_reasons": {
+    "door_failed_room_support": 4,
+    "window_no_host_line": 1
+  },
+  "raw_symbolic_inner_door_candidates": [
+    {
+      "x": 852,
+      "y": 371,
+      "width": 20
+    },
+    {
+      "x": 574,
+      "y": 422,
+      "width": 20
+    },
+    {
+      "x": 600,
+      "y": 422,
+      "width": 38
+    },
+    {
+      "x": 852,
+      "y": 691,
+      "width": 20
+    },
+    {
+      "x": 390,
+      "y": 703,
+      "width": 21
+    }
+  ],
+  "inner_door_gap_candidates": [],
+  "inner_wall_gap_candidates": [],
+  "gap_plus_symbol_candidates": [],
+  "merged_inner_door_candidates": [
+    {
+      "x": 852,
+      "y": 371,
+      "width": 20
+    },
+    {
+      "x": 587,
+      "y": 422,
+      "width": 38
+    },
+    {
+      "x": 852,
+      "y": 691,
+      "width": 20
+    },
+    {
+      "x": 390,
+      "y": 703,
+      "width": 21
+    }
+  ],
+  "inner_door_hosted_count": 0,
+  "inner_door_reject_reasons": {
+    "symbol_area_too_small": 1,
+    "symbol_near_outer_polygon": 2
+  },
+  "gap_reject_reasons": {},
+  "stages": {
+    "raw_inner_doors_after_merge": 4,
+    "raw_outer_doors_after_merge": 2,
+    "raw_windows_after_merge": 5,
+    "hosted_inner_doors_before_support": 4,
+    "hosted_inner_doors_after_support": 0,
+    "hosted_outer_doors_before_merge": 2,
+    "hosted_windows_before_merge": 4,
+    "hosted_doors_after_merge": 2,
+    "hosted_windows_after_merge": 4,
+    "final_door_count": 2,
+    "final_window_count": 4
+  },
+  "symbolic_mask_pixel_count_before": 531,
+  "symbolic_mask_pixel_count_after": 1313,
+  "accepted_symbolic_components": 5,
+  "rejected_symbolic_components": 3,
+  "symbolic_reject_reasons": {
+    "symbol_area_too_small": 1,
+    "symbol_near_outer_polygon": 2
+  },
+  "rejected_candidates": [
+    {
+      "reason": "door_failed_room_support",
+      "x": 852,
+      "y": 371,
+      "width": 264
+    },
+    {
+      "reason": "door_failed_room_support",
+      "x": 587,
+      "y": 422,
+      "width": 264
+    },
+    {
+      "reason": "door_failed_room_support",
+      "x": 852,
+      "y": 691,
+      "width": 264
+    },
+    {
+      "reason": "door_failed_room_support",
+      "x": 390,
+      "y": 703,
+      "width": 264
+    },
+    {
+      "reason": "window_no_host_line",
+      "x": 1080,
+      "y": 30,
+      "width": 60
+    }
+  ],
+  "gap_evaluations": []
+}
