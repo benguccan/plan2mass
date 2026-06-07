@@ -172,6 +172,7 @@ USE_LINE_EVIDENCE_SUPPLEMENT = True
 USE_SEMANTIC_INNER_MASK_EXTRACTOR = True
 USE_RAW_AXIS_RECON_EXTRACTOR = True
 USE_RAW_AXIS_FULLPATH_VALIDATION = True
+USE_CLEAN_PLAN_MODE_EXTRACTOR = True
 
 
 def utc_now_iso() -> str:
@@ -3476,6 +3477,297 @@ def build_line_evidence_inner_walls(
     }
 
 
+def build_clean_plan_mode_inner_walls(
+    polygon_np: np.ndarray,
+    source_mask: np.ndarray,
+    scale: Dict[str, int],
+    raw_axis_segments: List[List[int]],
+    line_evidence_segments: List[List[int]],
+    orthogonal_segments: List[List[int]],
+    semantic_segments: List[List[int]],
+    raw_candidate_segments: List[List[int]],
+) -> Tuple[List[List[int]], np.ndarray, Dict[str, Any]]:
+    empty_mask = np.zeros_like(source_mask)
+    stats: Dict[str, Any] = {
+        "clean_plan_mode_enabled": True,
+        "clean_plan_mode_count": 0,
+        "clean_plan_mode_segments": [],
+        "clean_plan_mode_score": float("-inf"),
+        "clean_plan_mode_group_count": 0,
+        "clean_plan_mode_consensus_kept": 0,
+        "clean_plan_mode_single_source_kept": 0,
+        "clean_plan_mode_anchor_supplement_kept": 0,
+        "clean_plan_mode_clean_like": False,
+        "clean_plan_mode_rejected_outer": 0,
+        "clean_plan_mode_rejected_symbolic": 0,
+        "clean_plan_mode_sources": {},
+    }
+    if np.count_nonzero(source_mask) == 0:
+        return [], empty_mask, stats
+
+    source_defs = [
+        ("raw_axis", raw_axis_segments, 3.4),
+        ("line_evidence", line_evidence_segments, 2.6),
+        ("orthogonal", orthogonal_segments, 2.1),
+        ("semantic", semantic_segments, 1.7),
+        ("raw_candidate", raw_candidate_segments, 1.2),
+    ]
+    stats["clean_plan_mode_sources"] = {name: len(lines) for name, lines, _ in source_defs}
+
+    polygon_mask = np.zeros_like(source_mask)
+    cv2.fillPoly(polygon_mask, [polygon_np], 255)
+    interior_margin = max(scale["outer_edge_offset"] * 3, scale["max_wall_thickness"] * 2 + 6)
+    interior_kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (max(3, interior_margin * 2 + 1), max(3, interior_margin * 2 + 1)),
+    )
+    interior_mask = cv2.erode(polygon_mask, interior_kernel, iterations=1)
+    work_mask = cv2.bitwise_and(source_mask, interior_mask)
+    work_mask = cv2.morphologyEx(work_mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)
+
+    axis_tol = max(8, int(round(scale["max_wall_thickness"] * 1.6)))
+    gap_tol = max(14, min(scale["opening_max_gap"], 110))
+    min_len = max(MIN_WALL_LENGTH_PX, scale["opening_min_gap"] * 2)
+    required_thickness = max(scale["min_wall_thickness"], int(round(scale["max_wall_thickness"] * 0.42)))
+    anchor_tol = max(10, int(round(scale["max_wall_thickness"] * 1.6)))
+    outer_segments = polygon_to_axis_aligned_segments(
+        [[int(pt[0]), int(pt[1])] for pt in polygon_np.reshape(-1, 2)],
+        axis_tol=10,
+        min_length=max(24, scale["opening_min_gap"]),
+    )
+    clean_like = (
+        len(outer_segments) >= 4
+        and all(normalize_line(seg)["orientation"] in {"h", "v"} for seg in outer_segments)
+        and sum(1 for _, lines, _ in source_defs if lines) >= 3
+    )
+    stats["clean_plan_mode_clean_like"] = clean_like
+
+    def span_overlap_ratio(a: Dict[str, Any], b: Dict[str, Any]) -> float:
+        overlap = max(0, min(int(a["end"]), int(b["end"])) - max(int(a["start"]), int(b["start"])))
+        shorter = max(1, min(int(a["end"]) - int(a["start"]), int(b["end"]) - int(b["start"])))
+        return overlap / float(shorter)
+
+    def line_structural_score(line: List[int]) -> float:
+        item = normalize_line(line)
+        orientation = item["orientation"]
+        support = compute_line_support_score(line, orientation, work_mask, scale)
+        thickness = estimate_line_thickness(line, orientation=orientation, source_mask=work_mask, max_radius=scale["max_wall_thickness"])
+        length = line_length(line)
+        mx, my = midpoint_of_line(line)
+        boundary_dist = max(0.0, cv2.pointPolygonTest(polygon_np, (float(mx), float(my)), True))
+        return (support * 18.0) + (thickness * 4.5) + (min(length, 360.0) * 0.12) + (min(boundary_dist, 60.0) * 0.06)
+
+    grouped: List[Dict[str, Any]] = []
+    for source_name, lines, base_weight in source_defs:
+        for line in lines:
+            item = normalize_line(line)
+            if item["orientation"] not in {"h", "v"}:
+                continue
+            mx, my = midpoint_of_line(line)
+            signed_dist = cv2.pointPolygonTest(polygon_np, (float(mx), float(my)), True)
+            if signed_dist <= interior_margin:
+                continue
+            assigned = False
+            for group in grouped:
+                if group["orientation"] != item["orientation"]:
+                    continue
+                if abs(int(group["fixed"]) - int(item["fixed"])) > axis_tol:
+                    continue
+                same_span = span_overlap_ratio(group, item) >= 0.32
+                gap_close = max(int(item["start"]), int(group["start"])) - min(int(item["end"]), int(group["end"])) <= gap_tol
+                if not same_span and not gap_close:
+                    continue
+                group["members"].append({
+                    "line": [int(v) for v in line],
+                    "source": source_name,
+                    "weight": float(base_weight),
+                })
+                group["fixed_values"].append((int(item["fixed"]), float(base_weight)))
+                group["start"] = min(int(group["start"]), int(item["start"]))
+                group["end"] = max(int(group["end"]), int(item["end"]))
+                assigned = True
+                break
+            if not assigned:
+                grouped.append({
+                    "orientation": item["orientation"],
+                    "fixed": int(item["fixed"]),
+                    "start": int(item["start"]),
+                    "end": int(item["end"]),
+                    "members": [{
+                        "line": [int(v) for v in line],
+                        "source": source_name,
+                        "weight": float(base_weight),
+                    }],
+                    "fixed_values": [(int(item["fixed"]), float(base_weight))],
+                })
+
+    scored_lines: List[Dict[str, Any]] = []
+    for group in grouped:
+        total_weight = sum(weight for _, weight in group["fixed_values"])
+        fixed = int(round(sum(value * weight for value, weight in group["fixed_values"]) / max(total_weight, 1.0)))
+        merged_item = {
+            "orientation": group["orientation"],
+            "fixed": fixed,
+            "start": int(group["start"]),
+            "end": int(group["end"]),
+        }
+        merged_line = denormalize_line(merged_item)
+        orientation = merged_item["orientation"]
+        length = line_length(merged_line)
+        thickness = estimate_line_thickness(
+            merged_line,
+            orientation=orientation,
+            source_mask=work_mask,
+            max_radius=scale["max_wall_thickness"],
+        )
+        if length < min_len or thickness < required_thickness:
+            continue
+        sources = sorted({member["source"] for member in group["members"]})
+        source_count = len(sources)
+        support_score = line_structural_score(merged_line)
+        vote_weight = sum(float(member["weight"]) for member in group["members"])
+        keep = False
+        if source_count >= 2:
+            keep = True
+            stats["clean_plan_mode_consensus_kept"] += 1
+        elif support_score >= 250.0 and length >= min_len * 1.8:
+            keep = True
+            stats["clean_plan_mode_single_source_kept"] += 1
+        if not keep:
+            continue
+        scored_lines.append({
+            "line": merged_line,
+            "score": support_score + vote_weight * 12.0 + source_count * 18.0,
+            "sources": sources,
+            "source_count": source_count,
+            "support_score": support_score,
+            "length": length,
+            "thickness": thickness,
+        })
+
+    stats["clean_plan_mode_group_count"] = len(grouped)
+    scored_lines.sort(key=lambda item: item["score"], reverse=True)
+
+    def same_wall(a: List[int], b: List[int]) -> bool:
+        na = normalize_line(a)
+        nb = normalize_line(b)
+        if na["orientation"] != nb["orientation"]:
+            return False
+        if abs(int(na["fixed"]) - int(nb["fixed"])) > axis_tol:
+            return False
+        overlap = max(0, min(int(na["end"]), int(nb["end"])) - max(int(na["start"]), int(nb["start"])))
+        shorter = max(1, min(int(na["end"]) - int(na["start"]), int(nb["end"]) - int(nb["start"])))
+        return overlap / float(shorter) >= 0.5
+
+    def endpoint_anchor_count(line: List[int], anchors: List[List[int]]) -> int:
+        normalized = normalize_line(line)
+        orth = "v" if normalized["orientation"] == "h" else "h"
+        count = 0
+        for px, py in line_endpoints(line):
+            anchored = False
+            for other in anchors + outer_segments:
+                other_norm = normalize_line(other)
+                if other_norm["orientation"] != orth:
+                    continue
+                line_dist = abs(float(py) - float(other[1])) if orth == "h" else abs(float(px) - float(other[0]))
+                if line_dist > anchor_tol:
+                    continue
+                if orth == "h":
+                    if int(other_norm["start"]) - anchor_tol <= int(px) <= int(other_norm["end"]) + anchor_tol:
+                        anchored = True
+                        break
+                else:
+                    if int(other_norm["start"]) - anchor_tol <= int(py) <= int(other_norm["end"]) + anchor_tol:
+                        anchored = True
+                        break
+            if anchored:
+                count += 1
+        return count
+
+    max_candidates = max(8, min(14, int(round(len(scored_lines) * 0.75)))) if scored_lines else 0
+    if clean_like:
+        max_candidates = max(max_candidates, 10)
+    base_infos = [item for item in scored_lines if item["source_count"] >= 2]
+    supplement_infos = [item for item in scored_lines if item["source_count"] < 2]
+    kept_lines: List[List[int]] = []
+    for item in base_infos:
+        if any(same_wall(item["line"], existing) for existing in kept_lines):
+            continue
+        kept_lines.append(item["line"])
+    stats["clean_plan_mode_consensus_kept"] = len(kept_lines)
+    supplement_budget = 3 if clean_like else 1
+    supplemented = 0
+    for item in supplement_infos:
+        if len(kept_lines) >= max_candidates:
+            break
+        if supplemented >= supplement_budget:
+            break
+        if any(same_wall(item["line"], existing) for existing in kept_lines):
+            continue
+        anchors = endpoint_anchor_count(item["line"], kept_lines)
+        strong_single = item["support_score"] >= 220.0 and item["length"] >= min_len * 1.35
+        very_strong_single = item["support_score"] >= 260.0 and item["length"] >= min_len * 1.15
+        source_name = item["sources"][0] if item["sources"] else "unknown"
+        clean_structural_single = (
+            clean_like
+            and source_name in {"raw_axis", "orthogonal", "semantic"}
+            and item["support_score"] >= 175.0
+            and item["length"] >= min_len * 0.9
+            and item["thickness"] >= required_thickness
+        )
+        if anchors >= 2 and (strong_single or (clean_like and item["support_score"] >= 205.0)):
+            kept_lines.append(item["line"])
+            stats["clean_plan_mode_anchor_supplement_kept"] += 1
+            stats["clean_plan_mode_single_source_kept"] += 1
+            supplemented += 1
+        elif clean_like and anchors >= 1 and very_strong_single:
+            kept_lines.append(item["line"])
+            stats["clean_plan_mode_anchor_supplement_kept"] += 1
+            stats["clean_plan_mode_single_source_kept"] += 1
+            supplemented += 1
+        elif clean_structural_single and anchors >= 1:
+            kept_lines.append(item["line"])
+            stats["clean_plan_mode_anchor_supplement_kept"] += 1
+            stats["clean_plan_mode_single_source_kept"] += 1
+            supplemented += 1
+
+    kept_lines = remove_duplicate_lines(kept_lines, coord_tol=8, length_tol=12)
+    kept_lines = collapse_parallel_double_lines(kept_lines, pair_tol=scale["pair_merge_tol"])
+    kept_lines = remove_duplicate_lines(kept_lines, coord_tol=8, length_tol=12)
+    outer_margin = max(scale["outer_edge_offset"] * 4, scale["max_wall_thickness"] * 2 + 12)
+    before_outer = len(kept_lines)
+    kept_lines, _ = filter_lines_inside_building(kept_lines, polygon_np, outer_margin=outer_margin)
+    kept_lines, outer_stats = reject_outer_boundary_parallel_candidates(kept_lines, polygon_np, scale)
+    stats["clean_plan_mode_rejected_outer"] = (before_outer - len(kept_lines)) + int(outer_stats.get("outer_boundary_rejected_count", 0))
+    before_symbolic = len(kept_lines)
+    kept_lines, _ = filter_symbolic_vertical_walls(
+        kept_lines,
+        polygon_np,
+        source_mask=work_mask,
+        scale=scale,
+    )
+    stats["clean_plan_mode_rejected_symbolic"] = before_symbolic - len(kept_lines)
+    kept_lines, _ = merge_collinear_lines(
+        kept_lines,
+        pos_tol=8,
+        gap_tol=gap_tol,
+        return_stats=True,
+    )
+    kept_lines = remove_duplicate_lines(kept_lines, coord_tol=8, length_tol=12)
+
+    line_mask = np.zeros_like(source_mask)
+    draw_thickness = max(2, scale["min_wall_thickness"])
+    for line in kept_lines:
+        cv2.line(line_mask, (int(line[0]), int(line[1])), (int(line[2]), int(line[3])), 255, draw_thickness)
+    if kept_lines:
+        line_mask = cv2.dilate(line_mask, np.ones((3, 3), np.uint8), iterations=1)
+
+    stats["clean_plan_mode_count"] = len(kept_lines)
+    stats["clean_plan_mode_segments"] = [line[:] for line in kept_lines]
+    stats["clean_plan_mode_score"] = score_inner_wall_set(kept_lines, polygon_np, work_mask, scale)
+    return kept_lines, line_mask, stats
+
+
 def build_line_evidence_supplemented_inner_walls(
     legacy_lines: List[List[int]],
     line_evidence_stats: Dict[str, Any],
@@ -4994,6 +5286,160 @@ def estimate_rooms(
     return rooms
 
 
+def estimate_rooms_clean_plan(
+    polygon_np: np.ndarray,
+    inner_walls: List[List[int]],
+    doors: List[Dict[str, int]],
+    mask_shape: Tuple[int, int],
+    scale: Dict[str, int],
+    project_debug_dir: Optional[Path] = None,
+    floor_name: Optional[str] = None,
+) -> List[Dict[str, int]]:
+    room_mask = np.zeros(mask_shape, dtype=np.uint8)
+    cv2.fillPoly(room_mask, [polygon_np], 255)
+    polygon_mask = np.zeros(mask_shape, dtype=np.uint8)
+    cv2.fillPoly(polygon_mask, [polygon_np], 255)
+
+    barrier_thickness = max(12, scale["max_wall_thickness"] + 6, scale["opening_min_gap"] // 2)
+    barrier_mask = draw_lines_mask(
+        mask_shape,
+        inner_walls,
+        thickness=barrier_thickness,
+    )
+    endpoint_radius = max(3, barrier_thickness // 2)
+    axis_tol = max(8, int(round(scale["max_wall_thickness"] * 1.6)))
+    anchor_tol = max(14, scale["opening_min_gap"] // 2, scale["max_wall_thickness"] * 2 + 2)
+    bridge_tol = max(10, scale["max_wall_thickness"] * 2 + 2)
+    outer_segments = polygon_to_axis_aligned_segments(
+        [[int(pt[0]), int(pt[1])] for pt in polygon_np.reshape(-1, 2)],
+        axis_tol=8,
+        min_length=max(24, scale["opening_min_gap"]),
+    )
+
+    def projected_anchor(endpoint: Tuple[int, int], line: List[int], anchors: List[List[int]]) -> Optional[Tuple[int, int]]:
+        normalized = normalize_line(line)
+        orth = "v" if normalized["orientation"] == "h" else "h"
+        px, py = endpoint
+        best: Optional[Tuple[float, Tuple[int, int]]] = None
+        for other in anchors:
+            other_norm = normalize_line(other)
+            if other_norm["orientation"] != orth:
+                continue
+            if orth == "h":
+                tx = int(np.clip(px, int(other_norm["start"]), int(other_norm["end"])))
+                ty = int(other_norm["fixed"])
+            else:
+                tx = int(other_norm["fixed"])
+                ty = int(np.clip(py, int(other_norm["start"]), int(other_norm["end"])))
+            dist = hypot(float(px - tx), float(py - ty))
+            if dist > anchor_tol:
+                continue
+            if best is None or dist < best[0]:
+                best = (dist, (tx, ty))
+        return best[1] if best is not None else None
+
+    for idx, line in enumerate(inner_walls):
+        for endpoint in line_endpoints(line):
+            cv2.circle(barrier_mask, endpoint, endpoint_radius, 255, -1)
+            anchor_lines = [other for j, other in enumerate(inner_walls) if j != idx] + outer_segments
+            anchor_point = projected_anchor(endpoint, line, anchor_lines)
+            if anchor_point is not None:
+                cv2.line(barrier_mask, endpoint, anchor_point, 255, max(2, barrier_thickness // 3))
+
+    horizontal_lines = sorted(
+        [line[:] for line in inner_walls if normalize_line(line)["orientation"] == "h"],
+        key=lambda line: (normalize_line(line)["fixed"], normalize_line(line)["start"]),
+    )
+    vertical_lines = sorted(
+        [line[:] for line in inner_walls if normalize_line(line)["orientation"] == "v"],
+        key=lambda line: (normalize_line(line)["fixed"], normalize_line(line)["start"]),
+    )
+
+    def bridge_collinear(lines: List[List[int]], orientation: str) -> None:
+        for first, second in zip(lines, lines[1:]):
+            a = normalize_line(first)
+            b = normalize_line(second)
+            if abs(int(a["fixed"]) - int(b["fixed"])) > axis_tol:
+                continue
+            gap = int(b["start"]) - int(a["end"])
+            if gap <= 0 or gap > bridge_tol:
+                continue
+            if orientation == "h":
+                mid_x = int(round((int(a["end"]) + int(b["start"])) / 2.0))
+                mid_y = int(a["fixed"])
+            else:
+                mid_x = int(a["fixed"])
+                mid_y = int(round((int(a["end"]) + int(b["start"])) / 2.0))
+            if any(hypot(float(door["x"] - mid_x), float(door["y"] - mid_y)) <= max(12, scale["opening_min_gap"] // 2) for door in doors):
+                continue
+            bridge_line = denormalize_line({
+                "orientation": orientation,
+                "fixed": int(a["fixed"]),
+                "start": int(a["end"]),
+                "end": int(b["start"]),
+            })
+            cv2.line(
+                barrier_mask,
+                (int(bridge_line[0]), int(bridge_line[1])),
+                (int(bridge_line[2]), int(bridge_line[3])),
+                255,
+                max(2, barrier_thickness // 3),
+            )
+
+    bridge_collinear(horizontal_lines, "h")
+    bridge_collinear(vertical_lines, "v")
+
+    barrier_mask = cv2.dilate(barrier_mask, np.ones((3, 3), np.uint8), iterations=1)
+    room_mask[barrier_mask > 0] = 0
+
+    if doors:
+        door_close_mask = np.zeros(mask_shape, dtype=np.uint8)
+        close_thickness = max(scale["max_wall_thickness"] + 8, scale["opening_min_gap"] // 2 + 2)
+        for door in doors:
+            cx, cy = int(door["x"]), int(door["y"])
+            cv2.circle(door_close_mask, (cx, cy), close_thickness // 2, 255, -1)
+        room_mask[door_close_mask > 0] = 0
+        room_mask = cv2.bitwise_and(room_mask, polygon_mask)
+
+    room_mask = cv2.bitwise_and(room_mask, polygon_mask)
+    room_mask = cv2.morphologyEx(room_mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8), iterations=1)
+
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(room_mask, connectivity=8)
+    rooms: List[Dict[str, int]] = []
+    min_room_area = max(1000, int((scale["opening_min_gap"] ** 2) * 2.2))
+
+    for label in range(1, num_labels):
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        if area < min_room_area:
+            continue
+        cx, cy = centroids[label]
+        rooms.append({
+            "id": len(rooms) + 1,
+            "x": int(round(cx)),
+            "y": int(round(cy)),
+            "area": area,
+        })
+
+    if project_debug_dir is not None and floor_name is not None:
+        debug = np.zeros((mask_shape[0], mask_shape[1], 3), dtype=np.uint8)
+        for label in range(1, num_labels):
+            area = int(stats[label, cv2.CC_STAT_AREA])
+            if area < min_room_area:
+                continue
+            color = (
+                int((53 * label) % 255),
+                int((97 * label) % 255),
+                int((149 * label) % 255),
+            )
+            debug[labels == label] = color
+
+        barrier_bgr = cv2.cvtColor(barrier_mask, cv2.COLOR_GRAY2BGR)
+        debug = cv2.addWeighted(debug, 0.82, barrier_bgr, 0.18, 0)
+        save_debug(project_debug_dir, floor_name, "rooms.png", debug)
+
+    return rooms
+
+
 def build_floor_summary(
     polygon: List[List[int]],
     inner_walls: List[List[int]],
@@ -5274,6 +5720,25 @@ def extract_inner_walls(
             semantic_inner_mask,
             scale,
         )
+    clean_plan_mode_segments: List[List[int]] = []
+    clean_plan_mode_mask = np.zeros_like(inner_candidates)
+    clean_plan_mode_stats: Dict[str, Any] = {
+        "clean_plan_mode_enabled": False,
+        "clean_plan_mode_count": 0,
+        "clean_plan_mode_segments": [],
+        "clean_plan_mode_score": float("-inf"),
+    }
+    if USE_CLEAN_PLAN_MODE_EXTRACTOR:
+        clean_plan_mode_segments, clean_plan_mode_mask, clean_plan_mode_stats = build_clean_plan_mode_inner_walls(
+            polygon_np,
+            raw_inner_candidates_mask,
+            scale,
+            raw_axis_recon_segments,
+            line_evidence_segments,
+            orthogonal_clean_segments,
+            semantic_inner_segments,
+            raw_candidate_based_segments,
+        )
     line_evidence_supplement_segments: List[List[int]] = []
     line_evidence_supplement_mask = np.zeros_like(inner_candidates)
     line_evidence_supplement_stats: Dict[str, Any] = {
@@ -5362,6 +5827,17 @@ def extract_inner_walls(
     debug_stats["semantic_filtered_pixels"] = int(semantic_inner_stats.get("semantic_filtered_pixels", 0))
     debug_stats["semantic_symbolic_rejects"] = int(semantic_inner_stats.get("semantic_symbolic_rejects", 0))
     debug_stats["semantic_repeated_rejects"] = int(semantic_inner_stats.get("semantic_repeated_rejects", 0))
+    debug_stats["clean_plan_mode_enabled"] = bool(clean_plan_mode_stats.get("clean_plan_mode_enabled", False))
+    debug_stats["clean_plan_mode_count"] = int(clean_plan_mode_stats.get("clean_plan_mode_count", 0))
+    debug_stats["clean_plan_mode_segments"] = clean_plan_mode_stats.get("clean_plan_mode_segments", [])
+    debug_stats["clean_plan_mode_group_count"] = int(clean_plan_mode_stats.get("clean_plan_mode_group_count", 0))
+    debug_stats["clean_plan_mode_consensus_kept"] = int(clean_plan_mode_stats.get("clean_plan_mode_consensus_kept", 0))
+    debug_stats["clean_plan_mode_single_source_kept"] = int(clean_plan_mode_stats.get("clean_plan_mode_single_source_kept", 0))
+    debug_stats["clean_plan_mode_anchor_supplement_kept"] = int(clean_plan_mode_stats.get("clean_plan_mode_anchor_supplement_kept", 0))
+    debug_stats["clean_plan_mode_clean_like"] = bool(clean_plan_mode_stats.get("clean_plan_mode_clean_like", False))
+    debug_stats["clean_plan_mode_rejected_outer"] = int(clean_plan_mode_stats.get("clean_plan_mode_rejected_outer", 0))
+    debug_stats["clean_plan_mode_rejected_symbolic"] = int(clean_plan_mode_stats.get("clean_plan_mode_rejected_symbolic", 0))
+    debug_stats["clean_plan_mode_sources"] = clean_plan_mode_stats.get("clean_plan_mode_sources", {})
     wall_segments = collapse_parallel_double_lines(wall_segments, pair_tol=scale["pair_merge_tol"])
     debug_stats["stages"]["after_collapse_parallel_double_lines"] = int(len(wall_segments))
     collinear_gap_tol = max(14, min(scale["opening_max_gap"], 110))
@@ -5614,6 +6090,8 @@ def extract_inner_walls(
     line_evidence_used_as_final = False
     semantic_inner_reason = "feature_flag_disabled"
     semantic_inner_used_as_final = False
+    clean_plan_mode_reason = "parallel_candidate_only"
+    clean_plan_mode_used_as_final = False
     line_evidence_supplement_reason = "feature_flag_disabled"
     line_evidence_supplement_used_as_final = False
     line_evidence_gap_rescue_reason = "feature_flag_disabled"
@@ -5873,6 +6351,9 @@ def extract_inner_walls(
     debug_stats["semantic_inner_used_as_final"] = semantic_inner_used_as_final
     debug_stats["semantic_inner_reason"] = semantic_inner_reason
     debug_stats["semantic_inner_score"] = semantic_inner_score
+    debug_stats["clean_plan_mode_used_as_final"] = clean_plan_mode_used_as_final
+    debug_stats["clean_plan_mode_reason"] = clean_plan_mode_reason
+    debug_stats["clean_plan_mode_score"] = float(clean_plan_mode_stats.get("clean_plan_mode_score", float("-inf")))
     debug_stats["line_evidence_supplement_enabled"] = bool(line_evidence_supplement_stats.get("line_evidence_supplement_enabled", False))
     debug_stats["line_evidence_supplement_count"] = int(line_evidence_supplement_stats.get("line_evidence_supplement_count", 0))
     debug_stats["line_evidence_supplement_segments"] = line_evidence_supplement_stats.get("line_evidence_supplement_segments", [])
@@ -6067,6 +6548,31 @@ def extract_inner_walls(
     if semantic_inner_used_as_final:
         cv2.putText(
             semantic_inner_overlay,
+            "USED AS FINAL",
+            (12, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 180, 0),
+            2,
+            cv2.LINE_AA,
+        )
+    clean_plan_mode_overlay = overlay_mask_on_image(
+        debug_img,
+        clean_plan_mode_mask,
+        color=(255, 210, 90),
+        alpha=0.16,
+    )
+    for line in clean_plan_mode_segments:
+        cv2.line(
+            clean_plan_mode_overlay,
+            (int(line[0]), int(line[1])),
+            (int(line[2]), int(line[3])),
+            (0, 255, 0),
+            2,
+        )
+    if clean_plan_mode_used_as_final:
+        cv2.putText(
+            clean_plan_mode_overlay,
             "USED AS FINAL",
             (12, 24),
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -6343,6 +6849,7 @@ def extract_inner_walls(
     save_debug(project_debug_dir, floor_name, "orthogonal_clean_plan_final_overlay.png", orthogonal_clean_overlay)
     save_debug(project_debug_dir, floor_name, "line_evidence_final_overlay.png", line_evidence_overlay)
     save_debug(project_debug_dir, floor_name, "semantic_inner_mask_final_overlay.png", semantic_inner_overlay)
+    save_debug(project_debug_dir, floor_name, "clean_plan_mode_final_overlay.png", clean_plan_mode_overlay)
     save_debug(project_debug_dir, floor_name, "line_evidence_supplement_final_overlay.png", line_evidence_supplement_overlay)
     save_debug(project_debug_dir, floor_name, "line_evidence_gap_rescue_final_overlay.png", line_evidence_gap_rescue_overlay)
     save_debug(project_debug_dir, floor_name, "line_evidence_axis_replace_final_overlay.png", line_evidence_axis_replace_overlay)
@@ -6375,6 +6882,7 @@ def extract_inner_walls(
         "orthogonal_clean_plan_final_overlay": orthogonal_clean_overlay,
         "line_evidence_final_overlay": line_evidence_overlay,
         "semantic_inner_mask_final_overlay": semantic_inner_overlay,
+        "clean_plan_mode_final_overlay": clean_plan_mode_overlay,
         "line_evidence_supplement_final_overlay": line_evidence_supplement_overlay,
         "line_evidence_gap_rescue_final_overlay": line_evidence_gap_rescue_overlay,
         "line_evidence_axis_replace_final_overlay": line_evidence_axis_replace_overlay,
@@ -7615,6 +8123,11 @@ def process_floor_image(
     )
     save_debug_upload_image(
         debug_upload_floor_dir,
+        "17a_clean_plan_mode_final.png",
+        inner_wall_debug["clean_plan_mode_final_overlay"],
+    )
+    save_debug_upload_image(
+        debug_upload_floor_dir,
         "17b_semantic_inner_mask_final.png",
         inner_wall_debug["semantic_inner_mask_final_overlay"],
     )
@@ -7665,16 +8178,52 @@ def process_floor_image(
         cv2.circle(openings_overlay, (int(window["x"]), int(window["y"])), 6, (255, 0, 0), -1)
     save_debug_upload_image(debug_upload_floor_dir, "07_openings.png", openings_overlay)
 
-    rooms = estimate_rooms(
-        polygon_np=polygon_np,
-        inner_walls=inner_walls,
-        doors=doors,
-        mask_shape=structural_mask.shape[:2],
-        scale=scale,
-        project_debug_dir=project_debug_dir,
-        floor_name=floor_name,
-    )
-    rooms_overlay_path = project_debug_dir / floor_name / "rooms.png"
+    def select_rooms_variant(
+        candidate_inner_walls: List[List[int]],
+        candidate_doors: List[Dict[str, int]],
+        room_floor_name: str,
+    ) -> Tuple[List[Dict[str, int]], str, str]:
+        standard_rooms = estimate_rooms(
+            polygon_np=polygon_np,
+            inner_walls=candidate_inner_walls,
+            doors=candidate_doors,
+            mask_shape=structural_mask.shape[:2],
+            scale=scale,
+            project_debug_dir=project_debug_dir,
+            floor_name=room_floor_name,
+        )
+        clean_like = (
+            4 <= len(candidate_inner_walls) <= 12
+            and all(normalize_line(line)["orientation"] in {"h", "v"} for line in candidate_inner_walls)
+        )
+        if not clean_like:
+            return standard_rooms, room_floor_name, "standard"
+        clean_rooms_name = f"{room_floor_name}_clean_plan"
+        clean_rooms = estimate_rooms_clean_plan(
+            polygon_np=polygon_np,
+            inner_walls=candidate_inner_walls,
+            doors=candidate_doors,
+            mask_shape=structural_mask.shape[:2],
+            scale=scale,
+            project_debug_dir=project_debug_dir,
+            floor_name=clean_rooms_name,
+        )
+        clean_rooms_reasonable = len(clean_rooms) <= max(len(standard_rooms) + 4, len(candidate_inner_walls) + 3)
+        clean_rooms_gain = len(clean_rooms) - len(standard_rooms)
+        use_clean_rooms = False
+        if clean_rooms_reasonable:
+            if len(standard_rooms) <= 1 and len(clean_rooms) >= 2:
+                use_clean_rooms = True
+            elif len(standard_rooms) <= 2 and 1 <= clean_rooms_gain <= 2:
+                use_clean_rooms = True
+            elif len(standard_rooms) >= 3 and clean_rooms_gain == 1:
+                use_clean_rooms = True
+        if use_clean_rooms:
+            return clean_rooms, clean_rooms_name, "clean_plan"
+        return standard_rooms, room_floor_name, "standard"
+
+    rooms, rooms_overlay_name, room_mode = select_rooms_variant(inner_walls, doors, floor_name)
+    rooms_overlay_path = project_debug_dir / rooms_overlay_name / "rooms.png"
     rooms_overlay = cv2.imread(str(rooms_overlay_path)) if rooms_overlay_path.exists() else None
     if rooms_overlay is not None:
         save_debug_upload_image(debug_upload_floor_dir, "08_rooms.png", rooms_overlay)
@@ -7693,6 +8242,22 @@ def process_floor_image(
                 float(inner_wall_stats.get("raw_axis_recon_score", float("-inf"))),
                 {},
             ))
+            clean_plan_mode_lines = inner_wall_stats.get("clean_plan_mode_segments", [])
+            if (
+                USE_CLEAN_PLAN_MODE_EXTRACTOR
+                and clean_plan_mode_lines
+                and len(clean_plan_mode_lines) <= len(inner_walls) + 3
+            ):
+                candidate_variants.append((
+                    "clean_plan_mode",
+                    clean_plan_mode_lines,
+                    float(inner_wall_stats.get("clean_plan_mode_score", float("-inf"))),
+                    {
+                        "group_count": int(inner_wall_stats.get("clean_plan_mode_group_count", 0)),
+                        "consensus_kept": int(inner_wall_stats.get("clean_plan_mode_consensus_kept", 0)),
+                        "single_source_kept": int(inner_wall_stats.get("clean_plan_mode_single_source_kept", 0)),
+                    },
+                ))
             partitioned_lines, partitioned_stats = build_junction_partitioned_wall_set(
                 base_candidate_inner_walls,
                 polygon_np,
@@ -7798,23 +8363,15 @@ def process_floor_image(
                     min_t=0.04,
                     max_t=0.96,
                 )
-                candidate_rooms = estimate_rooms(
-                    polygon_np=polygon_np,
-                    inner_walls=candidate_inner_walls,
-                    doors=candidate_doors,
-                    mask_shape=structural_mask.shape[:2],
-                    scale=scale,
-                    project_debug_dir=project_debug_dir,
-                    floor_name=candidate_floor_name,
+                candidate_rooms, candidate_rooms_name, candidate_room_mode = select_rooms_variant(
+                    candidate_inner_walls,
+                    candidate_doors,
+                    candidate_floor_name,
                 )
-                legacy_openings_rooms = estimate_rooms(
-                    polygon_np=polygon_np,
-                    inner_walls=candidate_inner_walls,
-                    doors=legacy_openings_doors,
-                    mask_shape=structural_mask.shape[:2],
-                    scale=scale,
-                    project_debug_dir=project_debug_dir,
-                    floor_name=f"{candidate_floor_name}_legacy_openings",
+                legacy_openings_rooms, legacy_rooms_name, legacy_room_mode = select_rooms_variant(
+                    candidate_inner_walls,
+                    legacy_openings_doors,
+                    f"{candidate_floor_name}_legacy_openings",
                 )
                 candidate_full_score = score_fullpath_wall_candidate(
                     candidate_wall_score,
@@ -7867,7 +8424,8 @@ def process_floor_image(
                     "doors": selected_doors,
                     "windows": selected_windows,
                     "rooms": selected_rooms,
-                    "rooms_overlay_name": f"{candidate_floor_name}_legacy_openings" if selected_variant == "legacy_openings_reuse" else candidate_floor_name,
+                    "rooms_overlay_name": legacy_rooms_name if selected_variant == "legacy_openings_reuse" else candidate_rooms_name,
+                    "room_mode": legacy_room_mode if selected_variant == "legacy_openings_reuse" else candidate_room_mode,
                     "variant_meta": variant_meta,
                 }
                 if best_scored_candidate is None or float(candidate_record["fullpath_score"]) > float(best_scored_candidate["fullpath_score"]) + 0.05:
@@ -7948,6 +8506,7 @@ def process_floor_image(
                         doors = active_candidate["doors"]
                         windows = active_candidate["windows"]
                         rooms = active_candidate["rooms"]
+                        room_mode = str(active_candidate.get("room_mode", room_mode))
                         raw_axis_fullpath_used_as_final = True
                         raw_axis_fullpath_reason = "raw_axis_fullpath_partitioned_no_door_topology"
                         candidate_rooms_overlay_path = project_debug_dir / active_candidate["rooms_overlay_name"] / "rooms.png"
@@ -7962,6 +8521,7 @@ def process_floor_image(
                     doors = active_candidate["doors"]
                     windows = active_candidate["windows"]
                     rooms = active_candidate["rooms"]
+                    room_mode = str(active_candidate.get("room_mode", room_mode))
                     raw_axis_fullpath_used_as_final = True
                     raw_axis_fullpath_reason = f"raw_axis_fullpath_score_better_{active_candidate['wall_variant']}_{active_candidate['opening_variant']}"
                     candidate_rooms_overlay_path = project_debug_dir / active_candidate["rooms_overlay_name"] / "rooms.png"
@@ -7996,10 +8556,12 @@ def process_floor_image(
             "after_filter_symbolic_vertical_walls",
             inner_wall_stats.get("filtered_wall_count", "not_available"),
         ),
-        "final_inner_wall_count": inner_wall_stats.get("final_inner_wall_count", len(inner_walls)),
+        "final_inner_wall_count": len(inner_walls),
+        "pre_fullpath_inner_wall_count": inner_wall_stats.get("final_inner_wall_count", len(inner_walls)),
         "door_count": len(doors),
         "window_count": len(windows),
         "room_count": len(rooms),
+        "room_mode_used": room_mode,
         "raw_axis_fullpath_validation_enabled": USE_RAW_AXIS_FULLPATH_VALIDATION,
         "raw_axis_fullpath_used_as_final": raw_axis_fullpath_used_as_final,
         "raw_axis_fullpath_reason": raw_axis_fullpath_reason,
@@ -8022,6 +8584,7 @@ def process_floor_image(
             "wall_region_graph_final_overlay",
             "orthogonal_clean_plan_final_overlay",
             "line_evidence_final_overlay",
+            "clean_plan_mode_final_overlay",
             "line_evidence_supplement_final_overlay",
             "line_evidence_gap_rescue_final_overlay",
         ],
@@ -8117,6 +8680,20 @@ def process_floor_image(
         "semantic_inner_segments": inner_wall_stats.get("semantic_inner_segments", []),
         "semantic_inner_used_as_final": inner_wall_stats.get("semantic_inner_used_as_final", False),
         "semantic_inner_reason": inner_wall_stats.get("semantic_inner_reason", "not_available"),
+        "clean_plan_mode_enabled": inner_wall_stats.get("clean_plan_mode_enabled", False),
+        "clean_plan_mode_count": inner_wall_stats.get("clean_plan_mode_count", 0),
+        "clean_plan_mode_segments": inner_wall_stats.get("clean_plan_mode_segments", []),
+        "clean_plan_mode_used_as_final": inner_wall_stats.get("clean_plan_mode_used_as_final", False),
+        "clean_plan_mode_reason": inner_wall_stats.get("clean_plan_mode_reason", "not_available"),
+        "clean_plan_mode_score": inner_wall_stats.get("clean_plan_mode_score", float("-inf")),
+        "clean_plan_mode_group_count": inner_wall_stats.get("clean_plan_mode_group_count", 0),
+        "clean_plan_mode_consensus_kept": inner_wall_stats.get("clean_plan_mode_consensus_kept", 0),
+        "clean_plan_mode_single_source_kept": inner_wall_stats.get("clean_plan_mode_single_source_kept", 0),
+        "clean_plan_mode_anchor_supplement_kept": inner_wall_stats.get("clean_plan_mode_anchor_supplement_kept", 0),
+        "clean_plan_mode_clean_like": inner_wall_stats.get("clean_plan_mode_clean_like", False),
+        "clean_plan_mode_rejected_outer": inner_wall_stats.get("clean_plan_mode_rejected_outer", 0),
+        "clean_plan_mode_rejected_symbolic": inner_wall_stats.get("clean_plan_mode_rejected_symbolic", 0),
+        "clean_plan_mode_sources": inner_wall_stats.get("clean_plan_mode_sources", {}),
         "line_evidence_supplement_enabled": inner_wall_stats.get("line_evidence_supplement_enabled", False),
         "line_evidence_supplement_count": inner_wall_stats.get("line_evidence_supplement_count", 0),
         "line_evidence_supplement_segments": inner_wall_stats.get("line_evidence_supplement_segments", []),
