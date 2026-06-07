@@ -1,6 +1,6 @@
 param(
   [string]$GroundTruth = "backend/ground_truth/floor_1_clean.json",
-  [string]$ApiBase = "http://127.0.0.1:8010",
+  [string]$ApiBase = "http://127.0.0.1:8000",
   [double]$FloorHeight = 3.2
 )
 
