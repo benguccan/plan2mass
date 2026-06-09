@@ -23,6 +23,13 @@ import cv2
 import fitz
 import numpy as np
 
+from clean_plan_contract import (
+    analyze_supported_clean_plan_input,
+    build_supported_clean_plan_candidate,
+    build_supported_clean_plan_stairs,
+    evaluate_supported_clean_plan_candidate,
+)
+
 
 app = FastAPI(title="Plan2Mass API", version="3.5.0")
 
@@ -173,6 +180,8 @@ USE_SEMANTIC_INNER_MASK_EXTRACTOR = True
 USE_RAW_AXIS_RECON_EXTRACTOR = True
 USE_RAW_AXIS_FULLPATH_VALIDATION = True
 USE_CLEAN_PLAN_MODE_EXTRACTOR = True
+USE_SUPPORTED_CLEAN_PLAN_CONTRACT = True
+USE_SUPPORTED_CLEAN_PLAN_SELECTION = True
 
 
 def utc_now_iso() -> str:
@@ -3768,6 +3777,185 @@ def build_clean_plan_mode_inner_walls(
     return kept_lines, line_mask, stats
 
 
+def build_clean_plan_topology_recovery(
+    base_lines: List[List[int]],
+    raw_segments: List[List[int]],
+    polygon_np: np.ndarray,
+    source_mask: np.ndarray,
+    scale: Dict[str, int],
+    doors: List[Dict[str, int]],
+) -> Tuple[List[List[int]], Dict[str, Any]]:
+    stats: Dict[str, Any] = {
+        "enabled": False,
+        "supplement_count": 0,
+        "supplements": [],
+        "score": float("-inf"),
+    }
+    if not base_lines or not raw_segments:
+        return base_lines, stats
+
+    outer_segments = polygon_to_axis_aligned_segments(
+        [[int(pt[0]), int(pt[1])] for pt in polygon_np.reshape(-1, 2)],
+        axis_tol=8,
+        min_length=max(24, scale["opening_min_gap"]),
+    )
+    clean_like = (
+        len(base_lines) >= 4
+        and len(outer_segments) >= 4
+        and all(normalize_line(line)["orientation"] in {"h", "v"} for line in base_lines)
+    )
+    if not clean_like:
+        return base_lines, stats
+
+    stats["enabled"] = True
+    axis_tol = max(8, int(round(scale["max_wall_thickness"] * 1.6)))
+    bridge_gap = max(34, scale["opening_min_gap"] * 2)
+    min_len = max(38, int(round(scale["opening_min_gap"] * 1.6)))
+    max_len = max(88, int(round(scale["opening_max_gap"] * 0.92)))
+
+    def same_wall(a: List[int], b: List[int]) -> bool:
+        na = normalize_line(a)
+        nb = normalize_line(b)
+        if na["orientation"] != nb["orientation"]:
+            return False
+        if abs(int(na["fixed"]) - int(nb["fixed"])) > axis_tol:
+            return False
+        overlap = max(0, min(int(na["end"]), int(nb["end"])) - max(int(na["start"]), int(nb["start"])))
+        shorter = max(1, min(int(na["end"]) - int(na["start"]), int(nb["end"]) - int(nb["start"])))
+        return overlap / float(shorter) >= 0.5
+
+    def nearest_anchor(endpoint: Tuple[int, int], orientation: str, anchors: List[List[int]], prefer_low: bool) -> Optional[int]:
+        px, py = endpoint
+        orth = "h" if orientation == "v" else "v"
+        best: Optional[Tuple[int, int]] = None
+        for other in anchors:
+            item = normalize_line(other)
+            if item["orientation"] != orth:
+                continue
+            if orth == "h":
+                if not (int(item["start"]) - axis_tol <= int(px) <= int(item["end"]) + axis_tol):
+                    continue
+                gap = abs(int(py) - int(item["fixed"]))
+                target = int(item["fixed"])
+                if prefer_low and target > py:
+                    continue
+                if (not prefer_low) and target < py:
+                    continue
+            else:
+                if not (int(item["start"]) - axis_tol <= int(py) <= int(item["end"]) + axis_tol):
+                    continue
+                gap = abs(int(px) - int(item["fixed"]))
+                target = int(item["fixed"])
+                if prefer_low and target > px:
+                    continue
+                if (not prefer_low) and target < px:
+                    continue
+            if gap > bridge_gap:
+                continue
+            if best is None or gap < best[0]:
+                best = (gap, target)
+        return None if best is None else best[1]
+
+    supplemented: List[Dict[str, Any]] = []
+    anchor_lines = [line[:] for line in base_lines] + outer_segments
+    for line in raw_segments:
+        item = normalize_line(line)
+        orientation = item["orientation"]
+        if orientation not in {"h", "v"}:
+            continue
+        raw_length = line_length(line)
+        if raw_length < min_len or raw_length > max_len:
+            continue
+        if any(same_wall(line, existing) for existing in base_lines):
+            continue
+        if orientation == "v":
+            top = nearest_anchor((int(item["fixed"]), int(item["start"])), orientation, anchor_lines, prefer_low=True)
+            bottom = nearest_anchor((int(item["fixed"]), int(item["end"])), orientation, anchor_lines, prefer_low=False)
+            if top is not None and bottom is not None and bottom - top >= min_len:
+                candidate = denormalize_line({
+                    "orientation": "v",
+                    "fixed": int(item["fixed"]),
+                    "start": int(top),
+                    "end": int(bottom),
+                })
+            elif top is not None and raw_length >= min_len * 1.15:
+                candidate = denormalize_line({
+                    "orientation": "v",
+                    "fixed": int(item["fixed"]),
+                    "start": int(top),
+                    "end": int(item["end"]),
+                })
+            elif bottom is not None and raw_length >= min_len * 1.15:
+                candidate = denormalize_line({
+                    "orientation": "v",
+                    "fixed": int(item["fixed"]),
+                    "start": int(item["start"]),
+                    "end": int(bottom),
+                })
+            else:
+                continue
+        else:
+            left = nearest_anchor((int(item["start"]), int(item["fixed"])), orientation, anchor_lines, prefer_low=True)
+            right = nearest_anchor((int(item["end"]), int(item["fixed"])), orientation, anchor_lines, prefer_low=False)
+            if left is not None and right is not None and right - left >= min_len:
+                candidate = denormalize_line({
+                    "orientation": "h",
+                    "fixed": int(item["fixed"]),
+                    "start": int(left),
+                    "end": int(right),
+                })
+            elif left is not None and raw_length >= min_len * 1.15:
+                candidate = denormalize_line({
+                    "orientation": "h",
+                    "fixed": int(item["fixed"]),
+                    "start": int(left),
+                    "end": int(item["end"]),
+                })
+            elif right is not None and raw_length >= min_len * 1.15:
+                candidate = denormalize_line({
+                    "orientation": "h",
+                    "fixed": int(item["fixed"]),
+                    "start": int(item["start"]),
+                    "end": int(right),
+                })
+            else:
+                continue
+        if any(same_wall(candidate, existing) for existing in base_lines):
+            continue
+        mx, my = midpoint_of_line(candidate)
+        if any(hypot(float(mx - door["x"]), float(my - door["y"])) <= max(24, scale["opening_min_gap"]) for door in doors):
+            continue
+        support = compute_line_support_score(candidate, orientation, source_mask, scale)
+        thickness = estimate_line_thickness(candidate, orientation=orientation, source_mask=source_mask, max_radius=scale["max_wall_thickness"])
+        if support < 6.0 or thickness < max(scale["min_wall_thickness"], 4):
+            continue
+        supplemented.append({
+            "line": candidate,
+            "score": support * 18.0 + line_length(candidate) * 0.22 + thickness * 4.0,
+        })
+
+    supplemented.sort(key=lambda item: item["score"], reverse=True)
+    chosen: List[List[int]] = []
+    for item in supplemented:
+        if len(chosen) >= 2:
+            break
+        if any(same_wall(item["line"], existing) for existing in chosen):
+            continue
+        chosen.append(item["line"])
+
+    if not chosen:
+        return base_lines, stats
+
+    augmented = [line[:] for line in base_lines] + [line[:] for line in chosen]
+    augmented = remove_duplicate_lines(augmented, coord_tol=8, length_tol=12)
+    augmented, _ = merge_collinear_lines(augmented, pos_tol=8, gap_tol=max(14, min(scale["opening_max_gap"], 110)), return_stats=True)
+    augmented = remove_duplicate_lines(augmented, coord_tol=8, length_tol=12)
+    stats["supplement_count"] = len(chosen)
+    stats["supplements"] = [line[:] for line in chosen]
+    stats["score"] = score_inner_wall_set(augmented, polygon_np, source_mask, scale)
+    return augmented, stats
+
+
 def build_line_evidence_supplemented_inner_walls(
     legacy_lines: List[List[int]],
     line_evidence_stats: Dict[str, Any],
@@ -5616,6 +5804,7 @@ def extract_inner_walls(
     debug_stats["stages"]["oriented_segments"] = int(len(horizontal_segments) + len(vertical_segments))
 
     wall_segments = horizontal_segments + vertical_segments
+    debug_stats["oriented_wall_segments"] = [line[:] for line in wall_segments]
     raw_candidate_based_segments, raw_candidate_based_stats = build_raw_candidate_based_inner_walls(
         wall_segments,
         polygon_np,
@@ -7249,6 +7438,7 @@ def classify_outer_opening(
     floor_index: int,
     total_floors: int,
     scale: Dict[str, int],
+    prefer_window: bool = False,
 ) -> str:
     h, w = binary_mask.shape[:2]
     px, py = int(point["x"]), int(point["y"])
@@ -7319,6 +7509,9 @@ def classify_outer_opening(
         return "door"
 
     if axis_ratio > 0.06:
+        return "window"
+
+    if prefer_window and non_axis_ratio <= 0.02 and axis_ratio >= 0.015:
         return "window"
 
     return "door" if floor_index == 1 and width >= max(56, scale["opening_min_gap"] * 2) else "window"
@@ -7434,6 +7627,64 @@ def collect_fallback_outer_windows(
     return merge_opening_points(fallback_windows, tol=24)
 
 
+def collect_clean_plan_outer_windows(
+    outer_segments: List[List[int]],
+    binary_mask: np.ndarray,
+    outer_polygon: List[List[int]],
+    outer_polygon_contour: np.ndarray,
+    floor_index: int,
+    total_floors: int,
+    scale: Dict[str, int],
+    existing_doors: List[Dict[str, int]],
+) -> List[Dict[str, int]]:
+    fallback_windows: List[Dict[str, int]] = []
+    endpoint_tol = max(18, scale["max_wall_thickness"] * 2)
+
+    for seg in outer_segments:
+        if line_length(seg) < max(72, scale["opening_min_gap"] * 2):
+            continue
+
+        permissive_candidates = scan_outer_openings_on_line(
+            seg,
+            binary_mask,
+            scale,
+            threshold_scale=1.0,
+            min_threshold=0.20,
+        )
+        aggressive_candidates = scan_outer_openings_on_line(
+            seg,
+            binary_mask,
+            scale,
+            threshold_scale=1.12,
+            min_threshold=0.24,
+        )
+        candidates = merge_opening_points(permissive_candidates + aggressive_candidates, tol=18)
+
+        for point in candidates:
+            px, py = point["x"], point["y"]
+            if not point_near_polygon((px, py), outer_polygon_contour, dist_tol=34):
+                continue
+            if point_near_any_line_endpoint((px, py), [seg], tol=endpoint_tol):
+                continue
+            if any(hypot(float(px - door["x"]), float(py - door["y"])) <= max(30, scale["opening_min_gap"]) for door in existing_doors):
+                continue
+
+            opening_type = classify_outer_opening(
+                point,
+                seg,
+                outer_polygon,
+                binary_mask,
+                floor_index=floor_index,
+                total_floors=total_floors,
+                scale=scale,
+                prefer_window=True,
+            )
+            if opening_type == "window":
+                fallback_windows.append(point)
+
+    return merge_opening_points(fallback_windows, tol=20)
+
+
 def project_openings_to_host_lines(
     points: List[Dict[str, int]],
     lines: List[List[int]],
@@ -7473,6 +7724,109 @@ def boosted_opening_width(width: int, scale: Dict[str, int], opening_type: str) 
     if opening_type == "window":
         return max(base_width * 4, int(round(scale["opening_max_gap"] * 2.2)))
     return base_width
+
+
+def normalize_clean_plan_opening_widths(
+    openings: List[Dict[str, int]],
+    scale: Dict[str, int],
+    opening_type: str,
+) -> List[Dict[str, int]]:
+    normalized: List[Dict[str, int]] = []
+    min_width = max(scale["opening_min_gap"], scale["max_wall_thickness"] * 3)
+    if opening_type == "door":
+        max_width = max(int(round(scale["opening_max_gap"] * 1.10)), min_width + 22)
+    else:
+        max_width = max(int(round(scale["opening_max_gap"] * 1.65)), min_width + 28)
+
+    for point in openings:
+        width = int(point.get("width", 0))
+        if width <= 0:
+            normalized.append(dict(point))
+            continue
+        normalized.append({
+            **point,
+            "width": int(max(min_width, min(width, max_width))),
+        })
+    return normalized
+
+
+def recover_supported_clean_plan_symbolic_doors(
+    openings_stats_path: Path,
+    inner_walls: List[List[int]],
+    windows: List[Dict[str, int]],
+    scale: Dict[str, int],
+) -> Tuple[List[Dict[str, int]], Dict[str, Any]]:
+    meta: Dict[str, Any] = {
+        "enabled": True,
+        "raw_symbolic_count": 0,
+        "projected_count": 0,
+        "final_count": 0,
+        "applied": False,
+    }
+    if not openings_stats_path.exists() or not inner_walls:
+        meta["reason"] = "openings_stats_missing"
+        return [], meta
+
+    try:
+        opening_stats = json.loads(openings_stats_path.read_text(encoding="utf-8"))
+    except Exception:
+        meta["reason"] = "openings_stats_unreadable"
+        return [], meta
+
+    raw_symbolic = opening_stats.get("raw_symbolic_inner_door_candidates", []) or []
+    meta["raw_symbolic_count"] = len(raw_symbolic)
+    if not raw_symbolic:
+        meta["reason"] = "no_symbolic_inner_doors"
+        return [], meta
+
+    projected = project_openings_to_host_lines(
+        raw_symbolic,
+        inner_walls,
+        max_distance=max(30, scale["max_wall_thickness"] * 3.0),
+        endpoint_tol=12,
+        min_t=0.06,
+        max_t=0.94,
+    )
+    meta["projected_count"] = len(projected)
+    if not projected:
+        meta["reason"] = "symbolic_doors_not_projectable"
+        return [], meta
+
+    projected = [
+        {
+            "x": int(item["x"]),
+            "y": int(item["y"]),
+            "width": boosted_opening_width(int(item.get("width", 0)), scale, "door"),
+        }
+        for item in projected
+    ]
+    projected = merge_opening_points(projected, tol=20)
+    projected = normalize_clean_plan_opening_widths(projected, scale, "door")
+
+    cleaned: List[Dict[str, int]] = []
+    for door in projected:
+        if any(hypot(float(door["x"] - win["x"]), float(door["y"] - win["y"])) <= 24 for win in windows):
+            continue
+        cleaned.append(door)
+
+    meta["final_count"] = len(cleaned)
+    meta["applied"] = bool(cleaned)
+    meta["reason"] = "reused_symbolic_inner_doors" if cleaned else "all_symbolic_doors_too_close_to_windows"
+    return cleaned, meta
+
+
+def should_apply_variant_opening_visual_normalization(
+    wall_variant: str,
+    opening_variant: str,
+    room_mode: str,
+) -> bool:
+    if wall_variant == "raw_axis_partitioned" and opening_variant == "candidate_detected_openings":
+        return True
+    if wall_variant == "clean_plan_topology_recovery" and (
+        opening_variant == "candidate_detected_openings" or room_mode == "clean_plan"
+    ):
+        return True
+    return False
 
 
 def detect_symbolic_inner_door_candidates(
@@ -7517,12 +7871,15 @@ def detect_symbolic_inner_door_candidates(
         "accepted_component_count": 0,
         "symbolic_reject_reasons": {},
         "reject_reasons": {},
+        "rejected_component_samples": [],
     }
 
-    def reject(reason: str) -> None:
+    def reject(reason: str, sample: Optional[Dict[str, Any]] = None) -> None:
         debug_stats["rejected_symbolic_components"] += 1
         debug_stats["symbolic_reject_reasons"][reason] = debug_stats["symbolic_reject_reasons"].get(reason, 0) + 1
         debug_stats["reject_reasons"][reason] = debug_stats["reject_reasons"].get(reason, 0) + 1
+        if sample is not None and len(debug_stats["rejected_component_samples"]) < 24:
+            debug_stats["rejected_component_samples"].append({"reason": reason, **sample})
 
     min_area = max(18, scale["min_wall_thickness"] * 3)
     max_area = max(2200, scale["opening_max_gap"] * scale["opening_min_gap"] * 2)
@@ -7539,32 +7896,39 @@ def detect_symbolic_inner_door_candidates(
         cx, cy = centroids[label]
         cx = int(round(cx))
         cy = int(round(cy))
+        sample = {
+            "x": cx,
+            "y": cy,
+            "bbox": [x, y, w, h],
+            "area": area,
+        }
 
         if area < min_area:
-            reject("symbol_area_too_small")
+            reject("symbol_area_too_small", sample)
             continue
         if area > max_area:
-            reject("symbol_area_too_large")
+            reject("symbol_area_too_large", sample)
             continue
 
         if point_near_polygon((cx, cy), polygon_contour, dist_tol=near_outer_tol):
-            reject("symbol_near_outer_polygon")
+            reject("symbol_near_outer_polygon", sample)
             continue
 
         bbox_aspect = max(w, h) / max(1, min(w, h))
+        sample["bbox_aspect"] = round(float(bbox_aspect), 3)
         if bbox_aspect > 6.5:
-            reject("symbol_aspect_too_extreme")
+            reject("symbol_aspect_too_extreme", sample)
             continue
 
         host = find_best_host_line((cx, cy), inner_walls, max_distance=host_distance, min_t=0.04, max_t=0.96)
         if host is None:
-            reject("symbol_no_inner_host")
+            reject("symbol_no_inner_host", sample)
             continue
 
         line = host["line"]
         pixel_rows, pixel_cols = np.where(labels == label)
         if len(pixel_rows) == 0:
-            reject("symbol_empty_component")
+            reject("symbol_empty_component", sample)
             continue
 
         if line[1] == line[3]:
@@ -7591,7 +7955,7 @@ def detect_symbolic_inner_door_candidates(
             )
 
         if point_near_any_line_endpoint((candidate_x, candidate_y), [line], tol=12):
-            reject("symbol_projection_near_endpoint")
+            reject("symbol_projection_near_endpoint", sample)
             continue
 
         width_hint = int(np.ptp(parallel_values)) + 1 if len(parallel_values) else max(w, h)
@@ -7762,6 +8126,7 @@ def detect_openings(
     debug_stats["accepted_symbolic_components"] = symbolic_inner_door_stats.get("accepted_symbolic_components", 0)
     debug_stats["rejected_symbolic_components"] = symbolic_inner_door_stats.get("rejected_symbolic_components", 0)
     debug_stats["symbolic_reject_reasons"] = symbolic_inner_door_stats.get("symbolic_reject_reasons", {})
+    debug_stats["symbolic_rejected_component_samples"] = symbolic_inner_door_stats.get("rejected_component_samples", [])
     for point in symbolic_inner_doors:
         debug_stats["raw_symbolic_inner_door_candidates"].append(point)
         debug_stats["raw_door_candidates"].append({"source": "symbolic_inner_door", **point})
@@ -7928,6 +8293,31 @@ def detect_openings(
         )
         debug_stats["stages"]["fallback_windows"] = len(fallback_windows)
         hosted_windows = merge_opening_points(hosted_windows + fallback_windows, tol=24)
+
+    clean_like_window_mode = (
+        len(hosted_windows) <= 1
+        and 4 <= len(inner_walls) <= 12
+        and len(outer_segments) >= 4
+        and all(normalize_line(line)["orientation"] in {"h", "v"} for line in inner_walls)
+    )
+    debug_stats["stages"]["clean_plan_window_mode"] = bool(clean_like_window_mode)
+    if clean_like_window_mode:
+        clean_plan_windows = collect_clean_plan_outer_windows(
+            outer_segments=outer_segments,
+            binary_mask=binary_mask,
+            outer_polygon=outer_polygon,
+            outer_polygon_contour=outer_polygon_contour,
+            floor_index=floor_index,
+            total_floors=total_floors,
+            scale=scale,
+            existing_doors=hosted_doors,
+        )
+        debug_stats["stages"]["clean_plan_fallback_windows"] = len(clean_plan_windows)
+        hosted_windows = merge_opening_points(hosted_windows + clean_plan_windows, tol=20)
+
+    if clean_like_window_mode:
+        hosted_doors = normalize_clean_plan_opening_widths(hosted_doors, scale, "door")
+        hosted_windows = normalize_clean_plan_opening_widths(hosted_windows, scale, "window")
 
     cleaned_doors: List[Dict[str, int]] = []
     for door in hosted_doors:
@@ -8297,6 +8687,24 @@ def process_floor_image(
         if not candidate_variants:
             raw_axis_fullpath_reason = "raw_axis_fullpath_empty"
         else:
+            clean_topology_lines, clean_topology_stats = build_clean_plan_topology_recovery(
+                inner_walls,
+                inner_wall_stats.get("oriented_wall_segments", []),
+                polygon_np,
+                structural_mask,
+                scale,
+                doors,
+            )
+            if (
+                clean_topology_stats.get("supplement_count", 0) > 0
+                and len(clean_topology_lines) <= len(inner_walls) + 2
+            ):
+                candidate_variants.append((
+                    "clean_plan_topology_recovery",
+                    clean_topology_lines,
+                    float(clean_topology_stats.get("score", float("-inf"))),
+                    clean_topology_stats,
+                ))
             candidate_outer_segments = polygon_to_axis_aligned_segments(
                 polygon,
                 axis_tol=8,
@@ -8482,33 +8890,60 @@ def process_floor_image(
                     and int(active_candidate["wall_count"]) <= len(inner_walls) + 1
                     and int(active_candidate.get("variant_meta", {}).get("split_count", 0)) >= 2
                 )
+                allow_clean_plan_topology_room_gain = (
+                    active_candidate.get("wall_variant") == "clean_plan_topology_recovery"
+                    and active_candidate.get("opening_variant") == "legacy_openings_reuse"
+                    and int(len(active_candidate["doors"])) >= int(len(doors))
+                    and int(len(active_candidate["windows"])) >= int(len(windows))
+                    and int(len(active_candidate["rooms"])) >= int(len(rooms)) + 1
+                    and int(len(rooms)) <= 3
+                    and int(active_candidate["wall_count"]) <= len(inner_walls) + 1
+                    and int(active_candidate.get("variant_meta", {}).get("supplement_count", 0)) >= 1
+                )
                 failure_reason = candidate_fails(active_candidate)
                 if (
                     failure_reason is not None
                     and best_scored_candidate is not None
                     and best_scored_candidate is not active_candidate
-                    and not (failure_reason == "raw_axis_fullpath_score_not_better" and allow_partitioned_no_door_topology)
+                    and not (
+                        failure_reason == "raw_axis_fullpath_score_not_better"
+                        and (allow_partitioned_no_door_topology or allow_clean_plan_topology_room_gain)
+                    )
                 ):
                     fallback_failure = candidate_fails(best_scored_candidate)
                     if fallback_failure is None:
                         active_candidate = best_scored_candidate
                         failure_reason = None
                         allow_partitioned_no_door_topology = False
+                        allow_clean_plan_topology_room_gain = False
                 raw_axis_fullpath_candidate = {
                     key: value
                     for key, value in active_candidate.items()
                     if key not in {"inner_walls", "inner_wall_mask", "doors", "windows", "rooms", "rooms_overlay_name"}
                 }
                 if failure_reason is not None:
-                    if allow_partitioned_no_door_topology:
+                    if allow_partitioned_no_door_topology or allow_clean_plan_topology_room_gain:
+                        selected_doors = active_candidate["doors"]
+                        selected_windows = active_candidate["windows"]
+                        if should_apply_variant_opening_visual_normalization(
+                            str(active_candidate.get("wall_variant", "")),
+                            str(active_candidate.get("opening_variant", "")),
+                            str(active_candidate.get("room_mode", room_mode)),
+                        ):
+                            selected_doors = normalize_clean_plan_opening_widths(selected_doors, scale, "door")
+                            selected_windows = normalize_clean_plan_opening_widths(selected_windows, scale, "window")
                         inner_walls = [line[:] for line in active_candidate["inner_walls"]]
                         inner_wall_mask = active_candidate["inner_wall_mask"]
-                        doors = active_candidate["doors"]
-                        windows = active_candidate["windows"]
+                        doors = selected_doors
+                        windows = selected_windows
                         rooms = active_candidate["rooms"]
                         room_mode = str(active_candidate.get("room_mode", room_mode))
                         raw_axis_fullpath_used_as_final = True
-                        raw_axis_fullpath_reason = "raw_axis_fullpath_partitioned_no_door_topology"
+                        raw_axis_fullpath_reason = (
+                            "raw_axis_fullpath_clean_plan_topology_room_gain"
+                            if allow_clean_plan_topology_room_gain
+                            else "raw_axis_fullpath_partitioned_no_door_topology"
+                        )
                         candidate_rooms_overlay_path = project_debug_dir / active_candidate["rooms_overlay_name"] / "rooms.png"
                         candidate_rooms_overlay = cv2.imread(str(candidate_rooms_overlay_path)) if candidate_rooms_overlay_path.exists() else None
                         if candidate_rooms_overlay is not None:
@@ -8516,10 +8951,19 @@ def process_floor_image(
                     else:
                         raw_axis_fullpath_reason = failure_reason
                 else:
+                    selected_doors = active_candidate["doors"]
+                    selected_windows = active_candidate["windows"]
+                    if should_apply_variant_opening_visual_normalization(
+                        str(active_candidate.get("wall_variant", "")),
+                        str(active_candidate.get("opening_variant", "")),
+                        str(active_candidate.get("room_mode", room_mode)),
+                    ):
+                        selected_doors = normalize_clean_plan_opening_widths(selected_doors, scale, "door")
+                        selected_windows = normalize_clean_plan_opening_widths(selected_windows, scale, "window")
                     inner_walls = [line[:] for line in active_candidate["inner_walls"]]
                     inner_wall_mask = active_candidate["inner_wall_mask"]
-                    doors = active_candidate["doors"]
-                    windows = active_candidate["windows"]
+                    doors = selected_doors
+                    windows = selected_windows
                     rooms = active_candidate["rooms"]
                     room_mode = str(active_candidate.get("room_mode", room_mode))
                     raw_axis_fullpath_used_as_final = True
@@ -8538,6 +8982,104 @@ def process_floor_image(
         cv2.circle(openings_overlay, (int(window["x"]), int(window["y"])), 6, (255, 0, 0), -1)
     save_debug_upload_image(debug_upload_floor_dir, "07_openings.png", openings_overlay)
 
+    supported_clean_plan_contract_meta: Dict[str, Any] = {
+        "enabled": USE_SUPPORTED_CLEAN_PLAN_CONTRACT,
+        "eligible": False,
+        "score": 0.0,
+        "reasons": ["feature_flag_disabled"] if not USE_SUPPORTED_CLEAN_PLAN_CONTRACT else [],
+    }
+    supported_clean_plan_candidate: Dict[str, Any] = {}
+    supported_clean_plan_stairs: List[Dict[str, Any]] = []
+    supported_clean_plan_selection: Dict[str, Any] = {
+        "enabled": USE_SUPPORTED_CLEAN_PLAN_SELECTION,
+        "selected": False,
+        "mode": "none",
+        "reason": "feature_flag_disabled" if not USE_SUPPORTED_CLEAN_PLAN_SELECTION else "not_evaluated",
+    }
+    supported_clean_plan_door_fallback: Dict[str, Any] = {
+        "enabled": True,
+        "applied": False,
+        "reason": "not_evaluated",
+        "raw_symbolic_count": 0,
+        "projected_count": 0,
+        "final_count": 0,
+    }
+
+    if USE_SUPPORTED_CLEAN_PLAN_CONTRACT:
+        symbolic_cluster_debug = inner_wall_stats.get("symbolic_cluster_debug", []) if isinstance(inner_wall_stats, dict) else []
+        supported_clean_plan_contract_meta = analyze_supported_clean_plan_input(
+            polygon=polygon,
+            inner_walls=inner_walls,
+            doors=doors,
+            windows=windows,
+            rooms=rooms,
+            symbolic_cluster_debug=symbolic_cluster_debug,
+        )
+        supported_clean_plan_stairs = build_supported_clean_plan_stairs(symbolic_cluster_debug)
+        supported_clean_plan_candidate = build_supported_clean_plan_candidate(
+            floor_index=floor_index,
+            polygon=polygon,
+            inner_walls=inner_walls,
+            doors=doors,
+            windows=windows,
+            rooms=rooms,
+            stairs=supported_clean_plan_stairs,
+            contract_meta=supported_clean_plan_contract_meta,
+        )
+        (debug_upload_floor_dir / "supported_clean_plan_candidate.json").write_text(
+            json.dumps(supported_clean_plan_candidate, indent=2),
+            encoding="utf-8",
+        )
+        candidate_overlay = deskewed_img.copy()
+        candidate_polygon = supported_clean_plan_candidate.get("polygon", [])
+        if len(candidate_polygon) >= 3:
+            candidate_polygon_np = np.array(candidate_polygon, dtype=np.int32).reshape((-1, 1, 2))
+            cv2.polylines(candidate_overlay, [candidate_polygon_np], True, (255, 0, 255), 2)
+        for x1, y1, x2, y2 in supported_clean_plan_candidate.get("inner_walls", []):
+            cv2.line(candidate_overlay, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 255), 2)
+        for door in supported_clean_plan_candidate.get("doors", []):
+            cv2.circle(candidate_overlay, (int(door["x"]), int(door["y"])), 5, (0, 140, 255), -1)
+        for window in supported_clean_plan_candidate.get("windows", []):
+            cv2.circle(candidate_overlay, (int(window["x"]), int(window["y"])), 5, (255, 0, 0), -1)
+        save_debug_upload_image(debug_upload_floor_dir, "22_supported_clean_plan_candidate.png", candidate_overlay)
+        if USE_SUPPORTED_CLEAN_PLAN_SELECTION:
+            supported_clean_plan_selection = evaluate_supported_clean_plan_candidate(
+                current_polygon=polygon,
+                current_inner_walls=inner_walls,
+                current_doors=doors,
+                current_windows=windows,
+                current_rooms=rooms,
+                candidate=supported_clean_plan_candidate,
+                contract_meta=supported_clean_plan_contract_meta,
+            )
+            if supported_clean_plan_selection.get("select"):
+                polygon = supported_clean_plan_candidate.get("polygon", polygon)
+                supported_clean_plan_selection["selected"] = True
+                supported_clean_plan_selection["mode"] = "polygon_only"
+                raw_axis_fullpath_reason = f"{raw_axis_fullpath_reason}_supported_clean_plan_selected"
+
+        if supported_clean_plan_contract_meta.get("eligible") and len(doors) == 0:
+            recovered_doors, supported_clean_plan_door_fallback = recover_supported_clean_plan_symbolic_doors(
+                openings_stats_path=project_debug_dir / floor_name / "openings_stats.json",
+                inner_walls=inner_walls,
+                windows=windows,
+                scale=scale,
+            )
+            if recovered_doors:
+                doors = recovered_doors
+                supported_clean_plan_door_fallback["applied"] = True
+                supported_clean_plan_selection["door_fallback_applied"] = len(recovered_doors)
+                raw_axis_fullpath_reason = f"{raw_axis_fullpath_reason}_supported_clean_plan_symbolic_doors"
+
+                openings_overlay = deskewed_img.copy()
+                for x1, y1, x2, y2 in inner_walls:
+                    cv2.line(openings_overlay, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+                for door in doors:
+                    cv2.circle(openings_overlay, (int(door["x"]), int(door["y"])), 6, (0, 140, 255), -1)
+                for window in windows:
+                    cv2.circle(openings_overlay, (int(window["x"]), int(window["y"])), 6, (255, 0, 0), -1)
+                save_debug_upload_image(debug_upload_floor_dir, "07_openings.png", openings_overlay)
+
     summary = build_floor_summary(
         polygon=polygon,
         inner_walls=inner_walls,
@@ -8545,6 +9087,7 @@ def process_floor_image(
         windows=windows,
         rooms=rooms,
     )
+
     debug_summary = {
         "image_size": {
             "width": int(deskewed_img.shape[1]),
@@ -8562,6 +9105,10 @@ def process_floor_image(
         "window_count": len(windows),
         "room_count": len(rooms),
         "room_mode_used": room_mode,
+        "supported_clean_plan_contract": supported_clean_plan_contract_meta,
+        "supported_clean_plan_selection": supported_clean_plan_selection,
+        "supported_clean_plan_candidate_stair_count": len(supported_clean_plan_stairs),
+        "supported_clean_plan_door_fallback": supported_clean_plan_door_fallback,
         "raw_axis_fullpath_validation_enabled": USE_RAW_AXIS_FULLPATH_VALIDATION,
         "raw_axis_fullpath_used_as_final": raw_axis_fullpath_used_as_final,
         "raw_axis_fullpath_reason": raw_axis_fullpath_reason,
@@ -8587,6 +9134,7 @@ def process_floor_image(
             "clean_plan_mode_final_overlay",
             "line_evidence_supplement_final_overlay",
             "line_evidence_gap_rescue_final_overlay",
+            "supported_clean_plan_candidate_overlay",
         ],
         "outer_boundary_rejected_count": inner_wall_stats.get("outer_boundary_rejected_count", 0),
         "outer_boundary_rejected_segments": inner_wall_stats.get("outer_boundary_rejected_segments", "not_available"),
@@ -8755,6 +9303,7 @@ def process_floor_image(
         "doors": doors,
         "windows": windows,
         "rooms": rooms,
+        "stairs": [],
         "summary": summary,
         "debug": {
             "polygon": f"/debug/{project_id}/{floor_name}/polygon_debug.png",
@@ -8775,6 +9324,7 @@ def process_floor_image(
             "deskew_angle_deg": round(skew_angle, 3),
             "target_input_dpi": TARGET_INPUT_DPI,
             "pixel_to_meter": 0.05,
+            "supported_clean_plan_contract": supported_clean_plan_contract_meta,
         },
         "error": None,
     }
