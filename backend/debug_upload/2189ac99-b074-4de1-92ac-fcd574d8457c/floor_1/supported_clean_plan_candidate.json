@@ -1,0 +1,65 @@
+{
+  "floor_index": 1,
+  "polygon": [
+    [
+      15,
+      22
+    ],
+    [
+      200,
+      22
+    ],
+    [
+      200,
+      250
+    ],
+    [
+      15,
+      250
+    ]
+  ],
+  "inner_walls": [
+    [
+      61,
+      87,
+      152,
+      87
+    ],
+    [
+      82,
+      85,
+      82,
+      151
+    ],
+    [
+      132,
+      85,
+      132,
+      152
+    ]
+  ],
+  "doors": [],
+  "windows": [],
+  "rooms": [
+    {
+      "id": 1,
+      "x": 110,
+      "y": 129
+    }
+  ],
+  "stairs": [],
+  "contract_meta": {
+    "enabled": true,
+    "eligible": false,
+    "score": 0.725,
+    "raw_polygon_axis_ratio": 1.0,
+    "polygon_axis_ratio": 1.0,
+    "normalized_polygon_point_count": 4,
+    "normalized_inner_wall_count": 3,
+    "inner_wall_axis_ratio": 1.0,
+    "symbolic_stair_cluster_count": 0,
+    "reasons": [
+      "too_few_inner_walls"
+    ]
+  }
+}
