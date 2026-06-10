@@ -114,6 +114,166 @@ def _is_stair_like_segment(
     return False
 
 
+def _filter_isolated_top_spurs(
+    lines: List[List[int]],
+    polygon_bbox: Tuple[int, int, int, int],
+) -> Tuple[List[List[int]], int]:
+    if not lines:
+        return lines, 0
+    min_x, min_y, max_x, max_y = polygon_bbox
+    width = max_x - min_x
+    height = max_y - min_y
+    if width <= 0 or height <= 0:
+        return lines, 0
+
+    top_band = max(28, int(round(height * 0.11)))
+    max_spur_len = max(96, int(round(height * 0.22)))
+    x_margin = int(round(width * 0.22))
+    tol = 10
+    norm = [_normalize_line(line, tol=tol) for line in lines]
+
+    def bottom_has_horizontal_connection(item: Dict[str, int]) -> bool:
+        end_y = item["end"]
+        x = item["fixed"]
+        for other in norm:
+            if other is None or other["orientation"] != "h":
+                continue
+            if abs(other["fixed"] - end_y) > tol:
+                continue
+            if other["start"] - tol <= x <= other["end"] + tol:
+                return True
+        return False
+
+    def has_longer_vertical_neighbors(item: Dict[str, int]) -> bool:
+        x = item["fixed"]
+        length = item["end"] - item["start"]
+        left_ok = False
+        right_ok = False
+        for other in norm:
+            if other is None or other["orientation"] != "v":
+                continue
+            if other["fixed"] == x:
+                continue
+            other_len = other["end"] - other["start"]
+            if other["start"] > min_y + top_band:
+                continue
+            if other_len < max(length * 1.9, int(round(height * 0.45))):
+                continue
+            if other["fixed"] < x:
+                left_ok = True
+            if other["fixed"] > x:
+                right_ok = True
+        return left_ok and right_ok
+
+    kept: List[List[int]] = []
+    removed = 0
+    for line, item in zip(lines, norm):
+        if item is None or item["orientation"] != "v":
+            kept.append(line)
+            continue
+        length = item["end"] - item["start"]
+        if (
+            item["start"] <= min_y + top_band
+            and length <= max_spur_len
+            and (min_x + x_margin) <= item["fixed"] <= (max_x - x_margin)
+            and not bottom_has_horizontal_connection(item)
+            and has_longer_vertical_neighbors(item)
+        ):
+            removed += 1
+            continue
+        kept.append(line)
+    return kept, removed
+
+
+def filter_supported_clean_plan_isolated_top_spurs(
+    lines: List[List[int]],
+    polygon: List[List[int]],
+) -> Tuple[List[List[int]], int]:
+    if not lines or len(polygon) < 4:
+        return [list(map(int, line)) for line in lines], 0
+    return _filter_isolated_top_spurs(
+        [list(map(int, line)) for line in lines],
+        _polygon_bbox(polygon),
+    )
+
+
+def close_supported_clean_plan_micro_gaps(
+    lines: List[List[int]],
+    max_gap: int = 15,
+    tol: int = 6,
+) -> Tuple[List[List[int]], int]:
+    if not lines:
+        return [], 0
+
+    infos: List[Dict[str, int] | None] = [_normalize_line(line, tol=tol) for line in lines]
+    closed = 0
+
+    for idx, info in enumerate(infos):
+        if info is None or info["orientation"] != "h":
+            continue
+        best_left_gap = max_gap + 1
+        best_left_x = None
+        best_right_gap = max_gap + 1
+        best_right_x = None
+        for other in infos:
+            if other is None or other["orientation"] != "v":
+                continue
+            if not (other["start"] - tol <= info["fixed"] <= other["end"] + tol):
+                continue
+            left_gap = abs(info["start"] - other["fixed"])
+            right_gap = abs(info["end"] - other["fixed"])
+            if 1 <= left_gap <= max_gap and left_gap < best_left_gap:
+                best_left_gap = left_gap
+                best_left_x = other["fixed"]
+            if 1 <= right_gap <= max_gap and right_gap < best_right_gap:
+                best_right_gap = right_gap
+                best_right_x = other["fixed"]
+        if best_left_x is not None and best_left_x != info["start"]:
+            info["start"] = int(best_left_x)
+            closed += 1
+        if best_right_x is not None and best_right_x != info["end"]:
+            info["end"] = int(best_right_x)
+            closed += 1
+
+    for idx, info in enumerate(infos):
+        if info is None or info["orientation"] != "v":
+            continue
+        best_top_gap = max_gap + 1
+        best_top_y = None
+        best_bottom_gap = max_gap + 1
+        best_bottom_y = None
+        for other in infos:
+            if other is None or other["orientation"] != "h":
+                continue
+            if not (other["start"] - tol <= info["fixed"] <= other["end"] + tol):
+                continue
+            top_gap = abs(info["start"] - other["fixed"])
+            bottom_gap = abs(info["end"] - other["fixed"])
+            if 1 <= top_gap <= max_gap and top_gap < best_top_gap:
+                best_top_gap = top_gap
+                best_top_y = other["fixed"]
+            if 1 <= bottom_gap <= max_gap and bottom_gap < best_bottom_gap:
+                best_bottom_gap = bottom_gap
+                best_bottom_y = other["fixed"]
+        if best_top_y is not None and best_top_y != info["start"]:
+            info["start"] = int(best_top_y)
+            closed += 1
+        if best_bottom_y is not None and best_bottom_y != info["end"]:
+            info["end"] = int(best_bottom_y)
+            closed += 1
+
+    normalized_lines: List[List[int]] = []
+    for line, info in zip(lines, infos):
+        if info is None:
+            normalized_lines.append([int(v) for v in line])
+            continue
+        if info["orientation"] == "h":
+            normalized_lines.append([int(info["start"]), int(info["fixed"]), int(info["end"]), int(info["fixed"])])
+        else:
+            normalized_lines.append([int(info["fixed"]), int(info["start"]), int(info["fixed"]), int(info["end"])])
+    return normalized_lines, int(closed)
+
+
 def normalize_supported_clean_plan_polygon(polygon: List[List[int]]) -> List[List[int]]:
     if len(polygon) < 3:
         return []
@@ -251,10 +411,15 @@ def normalize_supported_clean_plan_inner_walls(
             continue
         seen.add(key)
         deduped.append(list(key))
+    deduped, isolated_top_spur_filtered_count = _filter_isolated_top_spurs(
+        deduped,
+        (min_x, min_y, max_x, max_y),
+    )
     return {
         "lines": deduped,
         "endpoint_snap_count": endpoint_snap_count,
         "stair_filtered_count": stair_filtered_count,
+        "isolated_top_spur_filtered_count": isolated_top_spur_filtered_count,
     }
 
 
@@ -326,6 +491,7 @@ def analyze_supported_clean_plan_input(
         "inner_wall_axis_ratio": round(float(wall_ratio), 4),
         "endpoint_snap_count": int(normalized_wall_result["endpoint_snap_count"]),
         "stair_filtered_segment_count": int(normalized_wall_result["stair_filtered_count"]),
+        "isolated_top_spur_filtered_count": int(normalized_wall_result["isolated_top_spur_filtered_count"]),
         "symbolic_stair_cluster_count": len(accepted_symbolic_clusters),
         "reasons": reasons,
     }
@@ -389,6 +555,7 @@ def build_supported_clean_plan_candidate(
     candidate_contract_meta = dict(contract_meta)
     candidate_contract_meta["endpoint_snap_count"] = int(normalized_wall_result["endpoint_snap_count"])
     candidate_contract_meta["stair_filtered_segment_count"] = int(normalized_wall_result["stair_filtered_count"])
+    candidate_contract_meta["isolated_top_spur_filtered_count"] = int(normalized_wall_result["isolated_top_spur_filtered_count"])
     return {
         "floor_index": floor_index,
         "polygon": [list(map(int, point)) for point in (normalized_polygon or polygon)],

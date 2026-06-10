@@ -1,0 +1,187 @@
+{
+  "floor_index": 1,
+  "polygon": [
+    [
+      16,
+      16
+    ],
+    [
+      887,
+      16
+    ],
+    [
+      887,
+      696
+    ],
+    [
+      16,
+      696
+    ]
+  ],
+  "inner_walls": [
+    [
+      600,
+      204,
+      682,
+      204
+    ],
+    [
+      466,
+      357,
+      682,
+      357
+    ],
+    [
+      286,
+      539,
+      357,
+      539
+    ],
+    [
+      524,
+      576,
+      595,
+      576
+    ],
+    [
+      232,
+      75,
+      232,
+      176
+    ],
+    [
+      630,
+      293,
+      630,
+      492
+    ],
+    [
+      675,
+      113,
+      675,
+      664
+    ]
+  ],
+  "doors": [
+    {
+      "x": 232,
+      "y": 90,
+      "width": 264
+    },
+    {
+      "x": 232,
+      "y": 120,
+      "width": 264
+    },
+    {
+      "x": 232,
+      "y": 150,
+      "width": 264
+    },
+    {
+      "x": 675,
+      "y": 164,
+      "width": 264
+    },
+    {
+      "x": 496,
+      "y": 357,
+      "width": 264
+    },
+    {
+      "x": 572,
+      "y": 576,
+      "width": 264
+    }
+  ],
+  "windows": [
+    {
+      "x": 115,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 175,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 235,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 295,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 355,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 415,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 475,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 535,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 595,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 655,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 715,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 775,
+      "y": 696,
+      "width": 264
+    },
+    {
+      "x": 835,
+      "y": 696,
+      "width": 264
+    }
+  ],
+  "rooms": [
+    {
+      "id": 1,
+      "x": 446,
+      "y": 356
+    }
+  ],
+  "stairs": [],
+  "contract_meta": {
+    "enabled": true,
+    "eligible": true,
+    "score": 0.875,
+    "raw_polygon_axis_ratio": 0.9091,
+    "polygon_axis_ratio": 1.0,
+    "normalized_polygon_point_count": 4,
+    "normalized_inner_wall_count": 7,
+    "inner_wall_axis_ratio": 1.0,
+    "endpoint_snap_count": 0,
+    "stair_filtered_segment_count": 0,
+    "isolated_top_spur_filtered_count": 0,
+    "symbolic_stair_cluster_count": 0,
+    "reasons": []
+  }
+}
