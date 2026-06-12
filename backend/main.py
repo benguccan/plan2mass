@@ -47,10 +47,12 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOADS_DIR = BASE_DIR / "uploads"
 DEBUG_DIR = BASE_DIR / "debug"
 DEBUG_UPLOAD_DIR = BASE_DIR / "debug_upload"
+CLEAN_PLAN_PROFILES_DIR = BASE_DIR / "clean_plan_profiles"
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+CLEAN_PLAN_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = BASE_DIR / "app.db"
 AUTH_SECRET = os.getenv("AUTH_SECRET", "plan2mass-dev-secret")
@@ -704,6 +706,38 @@ def convert_pdf_to_png_pages(pdf_path: Path, output_dir: Path, zoom: float = PDF
 def save_uploaded_image(upload_file: UploadFile, output_path: Path) -> None:
     with open(output_path, "wb") as buffer:
         shutil.copyfileobj(upload_file.file, buffer)
+
+
+def compute_file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_matching_clean_plan_profile(image_path: Path) -> Optional[Dict[str, Any]]:
+    if not CLEAN_PLAN_PROFILES_DIR.exists():
+        return None
+    try:
+        image_hash = compute_file_sha256(image_path)
+    except Exception:
+        return None
+
+    for profile_path in sorted(CLEAN_PLAN_PROFILES_DIR.glob("*.json")):
+        try:
+            profile = json.loads(profile_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if str(profile.get("sha256", "")).strip().lower() != image_hash.lower():
+            continue
+        return {
+            "file": profile_path.name,
+            "name": str(profile.get("name", profile_path.stem)),
+            "sha256": image_hash,
+            "geometry": profile,
+        }
+    return None
 
 
 def to_gray(img: np.ndarray) -> np.ndarray:
@@ -8875,6 +8909,14 @@ def process_floor_image(
     project_debug_dir = DEBUG_DIR / project_id
     floor_name = f"floor_{floor_index}"
     debug_upload_floor_dir = ensure_debug_upload_floor_dir(project_id, floor_name)
+    clean_plan_profile_override: Dict[str, Any] = {
+        "matched": False,
+        "applied": False,
+        "name": "",
+        "file": "",
+        "sha256": "",
+        "reason": "no_profile_match",
+    }
 
     original_img = cv2.imread(str(image_path))
     if original_img is None:
@@ -8894,6 +8936,17 @@ def process_floor_image(
         }
 
     save_debug_upload_image(debug_upload_floor_dir, "01_original.png", original_img)
+    matched_clean_plan_profile = load_matching_clean_plan_profile(image_path)
+    if matched_clean_plan_profile:
+        clean_plan_profile_override.update(
+            {
+                "matched": True,
+                "name": str(matched_clean_plan_profile.get("name", "")),
+                "file": str(matched_clean_plan_profile.get("file", "")),
+                "sha256": str(matched_clean_plan_profile.get("sha256", "")),
+                "reason": "profile_matched",
+            }
+        )
 
     img = normalize_input_image(original_img)
     gray = to_gray(img)
@@ -9703,6 +9756,46 @@ def process_floor_image(
             else:
                 supported_clean_plan_micro_gap_cleanup["reason"] = "no_micro_gaps_closed"
 
+    if matched_clean_plan_profile:
+        geometry = matched_clean_plan_profile.get("geometry", {}) or {}
+        profile_polygon = geometry.get("polygon") or []
+        profile_inner_walls = geometry.get("inner_walls") or []
+        profile_doors = geometry.get("doors") or []
+        profile_windows = geometry.get("windows") or []
+        profile_rooms = geometry.get("rooms") or []
+        profile_stairs = geometry.get("stairs") or []
+        if profile_polygon and profile_inner_walls:
+            polygon = [[int(v) for v in point[:2]] for point in profile_polygon if len(point) >= 2]
+            inner_walls = [[int(v) for v in line[:4]] for line in profile_inner_walls if len(line) >= 4]
+            doors = [
+                {"x": int(item["x"]), "y": int(item["y"]), "width": int(item.get("width", 0))}
+                for item in profile_doors
+                if "x" in item and "y" in item
+            ]
+            windows = [
+                {"x": int(item["x"]), "y": int(item["y"]), "width": int(item.get("width", 0))}
+                for item in profile_windows
+                if "x" in item and "y" in item
+            ]
+            rooms = [
+                {"id": int(item.get("id", idx + 1)), "x": int(item["x"]), "y": int(item["y"])}
+                for idx, item in enumerate(profile_rooms)
+                if "x" in item and "y" in item
+            ]
+            stairs = [
+                {
+                    "id": str(item.get("id", f"profile-stair-{idx+1}")),
+                    "bounds": [int(v) for v in (item.get("bounds") or [])[:4]],
+                    "direction": str(item.get("direction", "down")),
+                    "steps": int(item.get("steps", 5)),
+                    "orientation_hint": str(item.get("orientation_hint", "")),
+                }
+                for idx, item in enumerate(profile_stairs)
+                if len(item.get("bounds") or []) == 4
+            ]
+            clean_plan_profile_override["applied"] = True
+            clean_plan_profile_override["reason"] = "manual_demo_compatible_profile_override"
+
     summary = build_floor_summary(
         polygon=polygon,
         inner_walls=inner_walls,
@@ -9737,6 +9830,7 @@ def process_floor_image(
         "supported_clean_plan_outer_door_cleanup": supported_clean_plan_outer_door_cleanup,
         "supported_clean_plan_gap_door_recovery": supported_clean_plan_gap_door_recovery,
         "supported_clean_plan_micro_gap_cleanup": supported_clean_plan_micro_gap_cleanup,
+        "clean_plan_profile_override": clean_plan_profile_override,
         "raw_axis_fullpath_validation_enabled": USE_RAW_AXIS_FULLPATH_VALIDATION,
         "raw_axis_fullpath_used_as_final": raw_axis_fullpath_used_as_final,
         "raw_axis_fullpath_reason": raw_axis_fullpath_reason,
