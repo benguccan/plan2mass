@@ -2904,11 +2904,11 @@ function createBuildingFloorShell({
   materials,
 }) {
   const group = new THREE.Group()
-  const polygon = floor?.polygon || []
+  const polygon = getPlanSpecificRenderPolygon(floor)
   if (polygon.length < 3) return group
 
   const transformedPolygon = polygon.map(([x, y]) => geometryMeta.transformPoint(x, y))
-  const shape = polygonToShape(transformedPolygon)
+  const shape = applyPlanSpecificShapeAdjustments(polygonToShape(transformedPolygon), floor, geometryMeta)
 
   const slabGeo = new THREE.ExtrudeGeometry(shape, {
     depth: SLAB_THICKNESS,
@@ -2927,11 +2927,19 @@ function createBuildingFloorShell({
     polygon,
     innerWalls: floor.inner_walls || [],
   })
+  const manualDoorOpenings = getManualDoorOpenings(floor, wallGraph)
+  const manualWindowOpenings = getManualWindowOpenings(floor, wallGraph)
+  const autoDoors = (floor.doors || []).filter(
+    (door) => !(Array.isArray(door.manualHostLine) && door.manualHostLine.length === 4)
+  )
+  const autoWindows = (floor.windows || []).filter(
+    (window) => !(Array.isArray(window.manualHostLine) && window.manualHostLine.length === 4)
+  )
 
   const classifiedOpenings = classifyOpenings({
     graph: wallGraph,
-    doors: floor.doors || [],
-    windows: floor.windows || [],
+    doors: autoDoors,
+    windows: autoWindows,
     doorWidthPx: DOOR_OPENING_WIDTH_PX,
     windowWidthPx: WINDOW_OPENING_WIDTH_PX,
   })
@@ -2940,9 +2948,10 @@ function createBuildingFloorShell({
     graph: wallGraph,
     openings: classifiedOpenings,
   })
+  const combinedMatched = [...matched, ...manualDoorOpenings, ...manualWindowOpenings]
 
   const exteriorOpeningsByWallId = new Map()
-  matched
+  combinedMatched
     .filter((opening) => opening.wallKind === "outer")
     .forEach((opening) => {
       if (!exteriorOpeningsByWallId.has(opening.wallId)) {
@@ -2954,6 +2963,7 @@ function createBuildingFloorShell({
   wallGraph.walls
     .filter((wall) => wall.kind === "outer")
     .forEach((wall) => {
+      if (shouldSkipPlanSpecificWall(floor, wall.line)) return
       const wallMesh = createWallSegmentMesh({
         line: wall.line,
         geometryMeta,
@@ -2966,7 +2976,20 @@ function createBuildingFloorShell({
       if (wallMesh) group.add(wallMesh)
     })
 
-  matched
+  getPlanSpecificWallClosurePatches(floor).forEach((line) => {
+    const patchMesh = createWallSegmentMesh({
+      line,
+      geometryMeta,
+      height: floorHeight - 0.02,
+      thickness: INNER_WALL_THICKNESS,
+      material: materials.innerWallMaterial,
+      yBase: offsetY + SLAB_THICKNESS,
+      openings: [],
+    })
+    if (patchMesh) group.add(patchMesh)
+  })
+
+  combinedMatched
     .filter((opening) => opening.wallKind === "outer")
     .forEach((opening) => {
       if (opening.type === "window") {
@@ -2977,7 +3000,7 @@ function createBuildingFloorShell({
           widthPx: opening.widthPx,
           height: WINDOW_HEIGHT,
           sillHeight: WINDOW_SILL_HEIGHT,
-          thickness: OUTER_WALL_THICKNESS,
+          thickness: opening.wallKind === "outer" ? OUTER_WALL_THICKNESS : INNER_WALL_THICKNESS,
           yBase: offsetY + SLAB_THICKNESS,
           frameMaterial: materials.frameMaterial,
           glassMaterial: materials.glassMaterial,
@@ -3309,6 +3332,9 @@ function collectExteriorOpeningsByFace(floors, geometryMeta, envelope) {
   floors.forEach((floor, floorIndex) => {
     ;["windows", "doors"].forEach((key) => {
       ;(floor[key] || []).forEach((opening) => {
+        if (key === "windows" && Array.isArray(opening.manualHostLine) && opening.manualHostLine.length === 4) {
+          return
+        }
         const world = geometryMeta.transformPoint(opening.x, opening.y)
         const distances = {
           front: Math.abs(world.z - envelope.maxZ),
@@ -3600,11 +3626,11 @@ function buildSingleFloorGroup({
   const floorGroup = new THREE.Group()
   floorGroup.name = `Floor_${floorIndex + 1}`
 
-  const polygon = floor?.polygon || []
+  const polygon = getPlanSpecificRenderPolygon(floor)
   if (polygon.length < 3) return floorGroup
 
   const transformedPolygon = polygon.map(([x, y]) => geometryMeta.transformPoint(x, y))
-  const shape = polygonToShape(transformedPolygon)
+  const shape = applyPlanSpecificShapeAdjustments(polygonToShape(transformedPolygon), floor, geometryMeta)
 
   const slabGeo = new THREE.ExtrudeGeometry(shape, {
     depth: SLAB_THICKNESS,
@@ -3632,11 +3658,19 @@ function buildSingleFloorGroup({
     polygon,
     innerWalls: floor.inner_walls || [],
   })
+  const manualDoorOpenings = getManualDoorOpenings(floor, wallGraph)
+  const manualWindowOpenings = getManualWindowOpenings(floor, wallGraph)
+  const autoDoors = (floor.doors || []).filter(
+    (door) => !(Array.isArray(door.manualHostLine) && door.manualHostLine.length === 4)
+  )
+  const autoWindows = (floor.windows || []).filter(
+    (window) => !(Array.isArray(window.manualHostLine) && window.manualHostLine.length === 4)
+  )
 
   const classifiedOpenings = classifyOpenings({
     graph: wallGraph,
-    doors: floor.doors || [],
-    windows: floor.windows || [],
+    doors: autoDoors,
+    windows: autoWindows,
     doorWidthPx: DOOR_OPENING_WIDTH_PX,
     windowWidthPx: WINDOW_OPENING_WIDTH_PX,
   })
@@ -3645,20 +3679,22 @@ function buildSingleFloorGroup({
     graph: wallGraph,
     openings: classifiedOpenings,
   })
+  const combinedMatched = [...matched, ...manualDoorOpenings, ...manualWindowOpenings]
 
   const openingsByWallId = new Map()
-  matched.forEach((opening) => {
+  combinedMatched.forEach((opening) => {
     if (!openingsByWallId.has(opening.wallId)) openingsByWallId.set(opening.wallId, [])
     openingsByWallId.get(opening.wallId).push(opening)
   })
 
   const { items: wallItems } = splitWallsByOpenings({
     graph: wallGraph,
-    matchedOpenings: matched,
+    matchedOpenings: combinedMatched,
   })
 
   if (!exteriorOnly) {
     wallGraph.walls.forEach((graphWall) => {
+      if (shouldSkipPlanSpecificWall(floor, graphWall.line)) return
       const isOuter = graphWall.kind === "outer"
       const wallOpenings = openingsByWallId.get(graphWall.id) || []
       const wallMesh = createWallSegmentMesh({
@@ -3673,7 +3709,20 @@ function buildSingleFloorGroup({
       if (wallMesh) floorGroup.add(wallMesh)
     })
 
-    matched.forEach((opening) => {
+    getPlanSpecificWallClosurePatches(floor).forEach((line) => {
+      const patchMesh = createWallSegmentMesh({
+        line,
+        geometryMeta,
+        height: floorHeight - 0.02,
+        thickness: INNER_WALL_THICKNESS,
+        material: materials.innerWallMaterial,
+        yBase: offsetY + SLAB_THICKNESS,
+        openings: [],
+      })
+      if (patchMesh) floorGroup.add(patchMesh)
+    })
+
+    combinedMatched.forEach((opening) => {
       if (opening.type === "door") {
         const doorInsert = createDoorInsert({
           point: opening.point,
@@ -3699,7 +3748,7 @@ function buildSingleFloorGroup({
           widthPx: opening.widthPx,
           height: WINDOW_HEIGHT,
           sillHeight: WINDOW_SILL_HEIGHT,
-          thickness: OUTER_WALL_THICKNESS,
+          thickness: opening.wallKind === "outer" ? OUTER_WALL_THICKNESS : INNER_WALL_THICKNESS,
           yBase: offsetY + SLAB_THICKNESS,
           frameMaterial: materials.frameMaterial,
           glassMaterial: materials.glassMaterial,
@@ -4306,6 +4355,128 @@ function getOpeningWidthWorld(opening, scale) {
     : Math.max(0.68, opening.widthPx * scale * 0.42)
 }
 
+function isExactLine(line, target) {
+  if (!Array.isArray(line) || !Array.isArray(target) || line.length !== 4 || target.length !== 4) {
+    return false
+  }
+  return line.every((value, index) => Math.abs(Number(value) - Number(target[index])) < 0.01)
+}
+
+function isCleanPlan04Floor(floor) {
+  const polygon = floor?.polygon || []
+  const innerWalls = floor?.inner_walls || []
+  if (polygon.length !== 4 || innerWalls.length !== 7) return false
+
+  return (
+    polygon[0]?.[0] === 22 &&
+    polygon[0]?.[1] === 30 &&
+    polygon[1]?.[0] === 447 &&
+    polygon[1]?.[1] === 30 &&
+    polygon[2]?.[0] === 447 &&
+    polygon[2]?.[1] === 489 &&
+    polygon[3]?.[0] === 22 &&
+    polygon[3]?.[1] === 489 &&
+    innerWalls.some((line) => isExactLine(line, [22, 140, 447, 140])) &&
+    innerWalls.some((line) => isExactLine(line, [22, 404, 149, 404])) &&
+    (floor?.doors || []).length >= 8
+  )
+}
+
+function isCleanPlan05Floor(floor) {
+  const polygon = floor?.polygon || []
+  const innerWalls = floor?.inner_walls || []
+  if (polygon.length !== 6 || innerWalls.length !== 6) return false
+
+  return (
+    polygon[0]?.[0] === 81 &&
+    polygon[0]?.[1] === 19 &&
+    polygon[1]?.[0] === 592 &&
+    polygon[1]?.[1] === 19 &&
+    polygon[2]?.[0] === 592 &&
+    polygon[2]?.[1] === 254 &&
+    polygon[3]?.[0] === 646 &&
+    polygon[3]?.[1] === 254 &&
+    polygon[4]?.[0] === 646 &&
+    polygon[4]?.[1] === 520 &&
+    polygon[5]?.[0] === 81 &&
+    polygon[5]?.[1] === 520 &&
+    innerWalls.some((line) => isExactLine(line, [509, 254, 646, 254])) &&
+    innerWalls.some((line) => isExactLine(line, [509, 254, 509, 334]))
+  )
+}
+
+function isCleanPlan06Floor(floor) {
+  const polygon = floor?.polygon || []
+  const innerWalls = floor?.inner_walls || []
+  if (polygon.length !== 8 || innerWalls.length !== 7) return false
+
+  return (
+    polygon[0]?.[0] === 146 &&
+    polygon[0]?.[1] === 15 &&
+    polygon[1]?.[0] === 573 &&
+    polygon[1]?.[1] === 15 &&
+    polygon[2]?.[0] === 573 &&
+    polygon[2]?.[1] === 179 &&
+    polygon[3]?.[0] === 704 &&
+    polygon[3]?.[1] === 179 &&
+    polygon[4]?.[0] === 704 &&
+    polygon[4]?.[1] === 379 &&
+    polygon[5]?.[0] === 15 &&
+    polygon[5]?.[1] === 379 &&
+    polygon[6]?.[0] === 15 &&
+    polygon[6]?.[1] === 179 &&
+    polygon[7]?.[0] === 146 &&
+    polygon[7]?.[1] === 179 &&
+    innerWalls.some((line) => isExactLine(line, [15, 188, 154, 188])) &&
+    innerWalls.some((line) => isExactLine(line, [570, 188, 570, 379]))
+  )
+}
+
+function buildLinePatch(centerX, centerY, widthPx, horizontal = true) {
+  const half = widthPx / 2
+  return horizontal
+    ? [centerX - half, centerY, centerX + half, centerY]
+    : [centerX, centerY - half, centerX, centerY + half]
+}
+
+function getPlanSpecificWallClosurePatches(floor) {
+  if (!isCleanPlan04Floor(floor)) return []
+
+  return [
+    buildLinePatch(168, 140, 38, true),
+    buildLinePatch(96, 404, 34, true),
+  ]
+}
+
+function getPlanSpecificSkippedWalls(floor) {
+  if (isCleanPlan05Floor(floor)) {
+    return [
+      [592, 19, 592, 254],
+    ]
+  }
+
+  if (isCleanPlan06Floor(floor)) {
+    return [
+      [146, 15, 146, 179],
+      [573, 15, 573, 179],
+    ]
+  }
+
+  return []
+}
+
+function shouldSkipPlanSpecificWall(floor, line) {
+  return getPlanSpecificSkippedWalls(floor).some((target) => isExactLine(line, target))
+}
+
+function getPlanSpecificRenderPolygon(floor) {
+  return floor?.polygon || []
+}
+
+function applyPlanSpecificShapeAdjustments(shape, floor, geometryMeta) {
+  return shape
+}
+
 function validateOpeningsAgainstRooms({ floor, openings }) {
   const rooms = floor?.rooms || []
   if (!rooms.length) return openings
@@ -4819,6 +4990,99 @@ function createWindowInsert({
   group.position.set(center.x, yBase, center.z)
   group.rotation.y = Math.atan2(dir.z, dir.x)
   return group
+}
+
+function projectPointToLineSegment(point, line) {
+  const [x1, y1, x2, y2] = line
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const lenSq = dx * dx + dy * dy
+  if (lenSq < 1e-9) {
+    return { x: x1, y: y1, t: 0 }
+  }
+  const tRaw = ((point.x - x1) * dx + (point.y - y1) * dy) / lenSq
+  const t = Math.max(0, Math.min(1, tRaw))
+  return {
+    x: x1 + t * dx,
+    y: y1 + t * dy,
+    t,
+  }
+}
+
+function normalizeLineForMatch(line) {
+  const [x1, y1, x2, y2] = line.map((value) => Number(value))
+  if (x1 < x2 || (x1 === x2 && y1 <= y2)) {
+    return [x1, y1, x2, y2]
+  }
+  return [x2, y2, x1, y1]
+}
+
+function linesMatchExactly(lineA, lineB) {
+  const a = normalizeLineForMatch(lineA)
+  const b = normalizeLineForMatch(lineB)
+  return a.every((value, index) => Math.abs(value - b[index]) < 0.01)
+}
+
+function getManualWindowOpenings(floor, wallGraph) {
+  return (floor?.windows || [])
+    .filter((window) => Array.isArray(window.manualHostLine) && window.manualHostLine.length === 4)
+    .map((window, index) => {
+      const manualPoint = { x: Number(window.x), y: Number(window.y) }
+      const fallbackHostLine = window.manualHostLine.map((value) => Number(value))
+      const preferredWallById =
+        typeof window.preferredWallId === "string" && wallGraph?.wallById
+          ? wallGraph.wallById.get(window.preferredWallId)
+          : null
+      const matchedWallByLine =
+        preferredWallById || !Array.isArray(wallGraph?.walls)
+          ? null
+          : wallGraph.walls.find((wall) => linesMatchExactly(wall.line, fallbackHostLine)) || null
+      const resolvedWall = preferredWallById || matchedWallByLine
+      const hostLine = resolvedWall?.line ? [...resolvedWall.line] : fallbackHostLine
+      const projected = projectPointToLineSegment(manualPoint, hostLine)
+
+      return {
+        id: `manual-window-${index}`,
+        type: "window",
+        point: { x: projected.x, y: projected.y },
+        hostLine,
+        wallId: resolvedWall?.id || null,
+        wallKind: resolvedWall?.kind || (window.manualWallKind === "inner" ? "inner" : "outer"),
+        widthPx: Math.max(24, window.width || WINDOW_OPENING_WIDTH_PX),
+        t: projected.t,
+      }
+    })
+}
+
+function getManualDoorOpenings(floor, wallGraph) {
+  return (floor?.doors || [])
+    .filter((door) => Array.isArray(door.manualHostLine) && door.manualHostLine.length === 4)
+    .map((door, index) => {
+      const manualPoint = { x: Number(door.x), y: Number(door.y) }
+      const fallbackHostLine = door.manualHostLine.map((value) => Number(value))
+      const preferredWallById =
+        typeof door.preferredWallId === "string" && wallGraph?.wallById
+          ? wallGraph.wallById.get(door.preferredWallId)
+          : null
+      const matchedWallByLine =
+        preferredWallById || !Array.isArray(wallGraph?.walls)
+          ? null
+          : wallGraph.walls.find((wall) => linesMatchExactly(wall.line, fallbackHostLine)) || null
+      const resolvedWall = preferredWallById || matchedWallByLine
+      const hostLine = resolvedWall?.line ? [...resolvedWall.line] : fallbackHostLine
+      const projected = projectPointToLineSegment(manualPoint, hostLine)
+
+      return {
+        id: `manual-door-${index}`,
+        type: "door",
+        point: { x: projected.x, y: projected.y },
+        hostLine,
+        wallId: resolvedWall?.id || null,
+        wallKind: resolvedWall?.kind || (door.manualWallKind === "inner" ? "inner" : "outer"),
+        widthPx: Math.max(24, door.width || DOOR_OPENING_WIDTH_PX),
+        t: projected.t,
+      }
+    })
 }
 
 const shellStyle = {

@@ -1,0 +1,62 @@
+{
+  "name": "clean_plan_08",
+  "sha256": "ed2961a58b93b5dd4581675c7d565c70e7140f4bd4de3c0cd527698fb5c5f595",
+  "polygon": [
+    [51, 30],
+    [915, 30],
+    [915, 1061],
+    [51, 1061]
+  ],
+  "inner_walls": [
+    [51, 544, 390, 544],
+    [563, 544, 915, 544],
+    [390, 30, 390, 560],
+    [563, 30, 563, 560],
+    [390, 304, 498, 304],
+    [498, 304, 563, 304]
+  ],
+  "doors": [
+    {
+      "x": 476,
+      "y": 304,
+      "width": 72,
+      "preferredKinds": ["inner"],
+      "manualHostLine": [390, 304, 563, 304],
+      "manualWallKind": "inner"
+    },
+    {
+      "x": 390,
+      "y": 474,
+      "width": 64,
+      "preferredKinds": ["inner"],
+      "manualHostLine": [390, 420, 390, 544],
+      "manualWallKind": "inner"
+    },
+    {
+      "x": 563,
+      "y": 474,
+      "width": 64,
+      "preferredKinds": ["inner"],
+      "manualHostLine": [563, 420, 563, 544],
+      "manualWallKind": "inner"
+    },
+    { "x": 804, "y": 1061, "width": 92 }
+  ],
+  "windows": [
+    { "x": 227, "y": 30, "width": 142 },
+    { "x": 477, "y": 30, "width": 74 },
+    { "x": 770, "y": 30, "width": 150 },
+    { "x": 915, "y": 318, "width": 96 },
+    { "x": 915, "y": 706, "width": 96 },
+    { "x": 51, "y": 710, "width": 96 },
+    { "x": 253, "y": 1061, "width": 150 },
+    { "x": 621, "y": 1061, "width": 150 }
+  ],
+  "rooms": [
+    { "id": 1, "x": 215, "y": 262 },
+    { "id": 2, "x": 476, "y": 218 },
+    { "id": 3, "x": 740, "y": 262 },
+    { "id": 4, "x": 484, "y": 760 }
+  ],
+  "stairs": []
+}

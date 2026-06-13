@@ -9767,16 +9767,72 @@ def process_floor_image(
         if profile_polygon and profile_inner_walls:
             polygon = [[int(v) for v in point[:2]] for point in profile_polygon if len(point) >= 2]
             inner_walls = [[int(v) for v in line[:4]] for line in profile_inner_walls if len(line) >= 4]
-            doors = [
-                {"x": int(item["x"]), "y": int(item["y"]), "width": int(item.get("width", 0))}
-                for item in profile_doors
-                if "x" in item and "y" in item
-            ]
-            windows = [
-                {"x": int(item["x"]), "y": int(item["y"]), "width": int(item.get("width", 0))}
-                for item in profile_windows
-                if "x" in item and "y" in item
-            ]
+            doors = []
+            for item in profile_doors:
+                if "x" not in item or "y" not in item:
+                    continue
+
+                door_item = {
+                    "x": int(item["x"]),
+                    "y": int(item["y"]),
+                    "width": int(item.get("width", 0)),
+                }
+
+                if isinstance(item.get("preferredWallId"), str) and item.get("preferredWallId"):
+                    door_item["preferredWallId"] = item["preferredWallId"]
+
+                preferred_kinds = item.get("preferredKinds")
+                if isinstance(preferred_kinds, list):
+                    allowed_kinds = [
+                        str(kind)
+                        for kind in preferred_kinds
+                        if str(kind) in {"outer", "inner"}
+                    ]
+                    if allowed_kinds:
+                        door_item["preferredKinds"] = allowed_kinds
+
+                manual_host_line = item.get("manualHostLine")
+                if isinstance(manual_host_line, list) and len(manual_host_line) >= 4:
+                    door_item["manualHostLine"] = [int(v) for v in manual_host_line[:4]]
+
+                manual_wall_kind = item.get("manualWallKind")
+                if str(manual_wall_kind) in {"outer", "inner"}:
+                    door_item["manualWallKind"] = str(manual_wall_kind)
+
+                doors.append(door_item)
+            windows = []
+            for item in profile_windows:
+                if "x" not in item or "y" not in item:
+                    continue
+
+                window_item = {
+                    "x": int(item["x"]),
+                    "y": int(item["y"]),
+                    "width": int(item.get("width", 0)),
+                }
+
+                if isinstance(item.get("preferredWallId"), str) and item.get("preferredWallId"):
+                    window_item["preferredWallId"] = item["preferredWallId"]
+
+                preferred_kinds = item.get("preferredKinds")
+                if isinstance(preferred_kinds, list):
+                    allowed_kinds = [
+                        str(kind)
+                        for kind in preferred_kinds
+                        if str(kind) in {"outer", "inner"}
+                    ]
+                    if allowed_kinds:
+                        window_item["preferredKinds"] = allowed_kinds
+
+                manual_host_line = item.get("manualHostLine")
+                if isinstance(manual_host_line, list) and len(manual_host_line) >= 4:
+                    window_item["manualHostLine"] = [int(v) for v in manual_host_line[:4]]
+
+                manual_wall_kind = item.get("manualWallKind")
+                if str(manual_wall_kind) in {"outer", "inner"}:
+                    window_item["manualWallKind"] = str(manual_wall_kind)
+
+                windows.append(window_item)
             rooms = [
                 {"id": int(item.get("id", idx + 1)), "x": int(item["x"]), "y": int(item["y"])}
                 for idx, item in enumerate(profile_rooms)
