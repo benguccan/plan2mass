@@ -1,0 +1,1407 @@
+{
+  "image_size": {
+    "width": 535,
+    "height": 630
+  },
+  "polygon_point_count": 4,
+  "raw_inner_candidate_count": 14,
+  "filtered_inner_wall_count": 6,
+  "final_inner_wall_count": 7,
+  "pre_fullpath_inner_wall_count": 4,
+  "door_count": 5,
+  "window_count": 5,
+  "room_count": 4,
+  "room_mode_used": "standard",
+  "supported_clean_plan_contract": {
+    "enabled": true,
+    "eligible": true,
+    "score": 0.8167,
+    "raw_polygon_axis_ratio": 1.0,
+    "polygon_axis_ratio": 1.0,
+    "normalized_polygon_point_count": 4,
+    "normalized_inner_wall_count": 4,
+    "inner_wall_axis_ratio": 1.0,
+    "endpoint_snap_count": 4,
+    "stair_filtered_segment_count": 0,
+    "isolated_top_spur_filtered_count": 0,
+    "symbolic_stair_cluster_count": 0,
+    "reasons": []
+  },
+  "supported_clean_plan_selection": {
+    "select": false,
+    "reason": "candidate_not_significantly_better",
+    "current_polygon_axis_ratio": 1.0,
+    "candidate_polygon_axis_ratio": 1.0,
+    "bbox_area_ratio": 1.0
+  },
+  "supported_clean_plan_candidate_stair_count": 0,
+  "supported_clean_plan_stair_fallback": {
+    "enabled": true,
+    "applied": false,
+    "reason": "no_horizontal_hatch_lines",
+    "line_count": 0
+  },
+  "supported_clean_plan_door_fallback": {
+    "enabled": true,
+    "applied": false,
+    "reason": "not_evaluated",
+    "raw_symbolic_count": 0,
+    "projected_count": 0,
+    "final_count": 0
+  },
+  "supported_clean_plan_additional_door_fallback": {
+    "enabled": true,
+    "applied": true,
+    "reason": "added_symbolic_inner_doors",
+    "current_door_count": 1,
+    "outer_like_current_door_count": 1,
+    "projected_count": 3,
+    "final_count": 2
+  },
+  "supported_clean_plan_outer_door_cleanup": {
+    "enabled": true,
+    "applied": false,
+    "reason": "no_window_like_outer_doors",
+    "removed_count": 0,
+    "removed_samples": []
+  },
+  "supported_clean_plan_gap_door_recovery": {
+    "enabled": true,
+    "applied": false,
+    "reason": "not_evaluated",
+    "removed_count": 0,
+    "added_count": 0
+  },
+  "supported_clean_plan_micro_gap_cleanup": {
+    "enabled": true,
+    "applied": false,
+    "reason": "no_micro_gaps_closed",
+    "closed_count": 0
+  },
+  "clean_plan_profile_override": {
+    "matched": true,
+    "applied": true,
+    "name": "clean_plan_03",
+    "file": "clean_plan_03.json",
+    "sha256": "fa6b8e9350e8cfa9851887b50d89d72ddc623e39687839f32c739d8c99a70ac9",
+    "reason": "manual_demo_compatible_profile_override"
+  },
+  "raw_axis_fullpath_validation_enabled": true,
+  "raw_axis_fullpath_used_as_final": false,
+  "raw_axis_fullpath_reason": "raw_axis_fullpath_score_not_better_supported_clean_plan_additional_symbolic_doors",
+  "raw_axis_fullpath_candidate": {
+    "wall_variant": "clean_plan_topology_recovery",
+    "wall_count": 6,
+    "door_count": 1,
+    "window_count": 3,
+    "room_count": 1,
+    "wall_score": 275.069,
+    "fullpath_score": 282.76900000000006,
+    "opening_variant": "candidate_detected_openings",
+    "candidate_opening_score": 282.76900000000006,
+    "legacy_openings_score": 282.76900000000006,
+    "legacy_door_transfer_count": 1,
+    "legacy_window_transfer_count": 3,
+    "room_mode": "standard",
+    "variant_meta": {
+      "enabled": true,
+      "supplement_count": 2,
+      "supplements": [
+        [
+          431,
+          581,
+          504,
+          581
+        ],
+        [
+          186,
+          41,
+          186,
+          111
+        ]
+      ],
+      "score": 275.069
+    }
+  },
+  "pipeline_step_names": [
+    "original_uploaded_image",
+    "preprocessed_binary_mask",
+    "outer_polygon_overlay",
+    "raw_inner_wall_candidates_overlay",
+    "filtered_inner_walls_overlay",
+    "final_inner_walls_overlay",
+    "openings_overlay",
+    "rooms_overlay",
+    "outer_boundary_rejected_overlay",
+    "axis_snapping_overlay",
+    "edge_pair_centerlines_overlay",
+    "skeleton_centerline_candidates_overlay",
+    "projection_grid_candidates_overlay",
+    "raw_candidate_based_final_overlay",
+    "wall_region_graph_final_overlay",
+    "orthogonal_clean_plan_final_overlay",
+    "line_evidence_final_overlay",
+    "clean_plan_mode_final_overlay",
+    "line_evidence_supplement_final_overlay",
+    "line_evidence_gap_rescue_final_overlay",
+    "supported_clean_plan_candidate_overlay"
+  ],
+  "outer_boundary_rejected_count": 0,
+  "outer_boundary_rejected_segments": [],
+  "parallel_edge_pair_count": 2,
+  "estimated_centerline_axis_count": 2,
+  "estimated_centerline_axes": [
+    {
+      "orientation": "h",
+      "axis": 329,
+      "segment": [
+        280,
+        329,
+        340,
+        329
+      ],
+      "source_pair_distance": 22,
+      "span_overlap_ratio": 1.0
+    },
+    {
+      "orientation": "h",
+      "axis": 307,
+      "segment": [
+        276,
+        307,
+        340,
+        307
+      ],
+      "source_pair_distance": 22,
+      "span_overlap_ratio": 1.0
+    }
+  ],
+  "edge_like_candidate_count": 7,
+  "centerline_like_candidate_count": 0,
+  "skeleton_enabled": true,
+  "skeleton_method": "morphological_skeleton",
+  "skeleton_candidate_count": 8,
+  "skeleton_candidates": [
+    [
+      288,
+      340,
+      343,
+      340
+    ],
+    [
+      285,
+      318,
+      466,
+      318
+    ],
+    [
+      288,
+      296,
+      343,
+      296
+    ],
+    [
+      84,
+      185,
+      179,
+      185
+    ],
+    [
+      127,
+      172,
+      172,
+      172
+    ],
+    [
+      275,
+      406,
+      275,
+      554
+    ],
+    [
+      180,
+      112,
+      180,
+      167
+    ],
+    [
+      275,
+      82,
+      275,
+      232
+    ]
+  ],
+  "skeleton_candidate_vertical_count": 3,
+  "skeleton_candidate_horizontal_count": 5,
+  "skeleton_mask_nonzero_count": 2179,
+  "projection_grid_enabled": true,
+  "projection_vertical_axis_count": 8,
+  "projection_horizontal_axis_count": 7,
+  "projection_vertical_axes": [
+    92,
+    132,
+    177,
+    276,
+    328,
+    382,
+    426,
+    452
+  ],
+  "projection_horizontal_axes": [
+    104,
+    176,
+    214,
+    318,
+    438,
+    476,
+    522
+  ],
+  "projection_candidate_count": 4,
+  "projection_candidate_vertical_count": 2,
+  "projection_candidate_horizontal_count": 2,
+  "projection_candidates": [
+    [
+      78,
+      176,
+      192,
+      176
+    ],
+    [
+      268,
+      318,
+      470,
+      318
+    ],
+    [
+      276,
+      75,
+      276,
+      236
+    ],
+    [
+      276,
+      399,
+      276,
+      558
+    ]
+  ],
+  "raw_candidate_based_enabled": true,
+  "raw_candidate_based_count": 7,
+  "raw_candidate_based_segments": [
+    [
+      53,
+      181,
+      189,
+      181
+    ],
+    [
+      276,
+      296,
+      340,
+      296
+    ],
+    [
+      268,
+      318,
+      496,
+      318
+    ],
+    [
+      280,
+      340,
+      340,
+      340
+    ],
+    [
+      186,
+      51,
+      186,
+      111
+    ],
+    [
+      268,
+      51,
+      268,
+      235
+    ],
+    [
+      275,
+      399,
+      275,
+      583
+    ]
+  ],
+  "raw_candidate_based_used_as_final": false,
+  "raw_candidate_based_reason": "legacy_final_score_better",
+  "raw_axis_recon_enabled": true,
+  "raw_axis_recon_count": 7,
+  "raw_axis_recon_segments": [
+    [
+      53,
+      181,
+      189,
+      181
+    ],
+    [
+      276,
+      296,
+      340,
+      296
+    ],
+    [
+      268,
+      318,
+      496,
+      318
+    ],
+    [
+      280,
+      340,
+      340,
+      340
+    ],
+    [
+      186,
+      51,
+      186,
+      111
+    ],
+    [
+      272,
+      51,
+      272,
+      235
+    ],
+    [
+      272,
+      399,
+      272,
+      583
+    ]
+  ],
+  "raw_axis_recon_used_as_final": false,
+  "raw_axis_recon_reason": "raw_axis_recon_insufficient_opening_signal",
+  "raw_axis_recon_cluster_count_h": 4,
+  "raw_axis_recon_cluster_count_v": 2,
+  "raw_axis_recon_clusters": [
+    {
+      "orientation": "h",
+      "fixed": 181,
+      "member_count": 1,
+      "spans": [
+        {
+          "start": 53,
+          "end": 189,
+          "length": 136.0,
+          "thickness": 14.0,
+          "support": 14.0
+        }
+      ]
+    },
+    {
+      "orientation": "h",
+      "fixed": 296,
+      "member_count": 1,
+      "spans": [
+        {
+          "start": 276,
+          "end": 340,
+          "length": 64.0,
+          "thickness": 5.0,
+          "support": 5.0
+        }
+      ]
+    },
+    {
+      "orientation": "h",
+      "fixed": 318,
+      "member_count": 1,
+      "spans": [
+        {
+          "start": 268,
+          "end": 496,
+          "length": 228.0,
+          "thickness": 14.0,
+          "support": 14.0
+        }
+      ]
+    },
+    {
+      "orientation": "h",
+      "fixed": 340,
+      "member_count": 1,
+      "spans": [
+        {
+          "start": 280,
+          "end": 340,
+          "length": 60.0,
+          "thickness": 5.0,
+          "support": 5.0
+        }
+      ]
+    },
+    {
+      "orientation": "v",
+      "fixed": 186,
+      "member_count": 1,
+      "spans": [
+        {
+          "start": 51,
+          "end": 111,
+          "length": 60.0,
+          "thickness": 14.0,
+          "support": 14.0
+        }
+      ]
+    },
+    {
+      "orientation": "v",
+      "fixed": 272,
+      "member_count": 2,
+      "spans": [
+        {
+          "start": 51,
+          "end": 235,
+          "length": 184.0,
+          "thickness": 14.0,
+          "support": 14.0
+        },
+        {
+          "start": 399,
+          "end": 583,
+          "length": 184.0,
+          "thickness": 14.0,
+          "support": 14.0
+        }
+      ]
+    }
+  ],
+  "raw_axis_hybrid_enabled": true,
+  "raw_axis_hybrid_count": 4,
+  "raw_axis_hybrid_segments": [
+    [
+      53,
+      181,
+      189,
+      181
+    ],
+    [
+      268,
+      316,
+      496,
+      316
+    ],
+    [
+      268,
+      51,
+      268,
+      235
+    ],
+    [
+      275,
+      399,
+      275,
+      583
+    ]
+  ],
+  "raw_axis_hybrid_replacements": [],
+  "raw_axis_hybrid_used_as_final": false,
+  "raw_axis_hybrid_reason": "raw_axis_hybrid_no_replacements",
+  "legacy_opening_compatibility": {
+    "opening_scan_count": 0,
+    "gap_scan_count": 0,
+    "hostable_line_count": 0,
+    "opening_compatibility_score": -1.4
+  },
+  "raw_axis_recon_opening_compatibility": {
+    "opening_scan_count": 0,
+    "gap_scan_count": 0,
+    "hostable_line_count": 0,
+    "opening_compatibility_score": -2.4499999999999997
+  },
+  "raw_axis_hybrid_opening_compatibility": {
+    "opening_scan_count": 0,
+    "gap_scan_count": 0,
+    "hostable_line_count": 0,
+    "opening_compatibility_score": -1.4
+  },
+  "wall_region_graph_enabled": true,
+  "wall_region_graph_count": 1,
+  "wall_region_graph_segments": [
+    [
+      126,
+      182,
+      172,
+      182
+    ]
+  ],
+  "wall_region_graph_used_as_final": false,
+  "wall_region_graph_reason": "legacy_or_raw_score_better",
+  "wall_region_component_count": 2,
+  "wall_region_stripe_axis_count_vertical": 0,
+  "wall_region_stripe_axis_count_horizontal": 1,
+  "wall_region_stripe_axes": [
+    {
+      "orientation": "h",
+      "axis": 182,
+      "component_bbox": [
+        187,
+        78,
+        10,
+        10
+      ]
+    }
+  ],
+  "wall_region_rejected_short_count": 12,
+  "wall_region_rejected_outer_count": 0,
+  "wall_region_candidate_generation_notes": [
+    "component_projection_peaks",
+    "multi_axis_stripe_extraction",
+    "local_axis_refinement",
+    "run_length_support_scanning",
+    "conservative_merge_and_boundary_filters"
+  ],
+  "wall_region_component_split_enabled": false,
+  "wall_region_original_component_count": 0,
+  "wall_region_subregion_count": 0,
+  "wall_region_split_component_count": 0,
+  "wall_region_split_rejected_small_count": 0,
+  "wall_region_split_notes": [],
+  "wall_region_axis_refinement_enabled": true,
+  "wall_region_axis_refined_count": 2,
+  "wall_region_axis_refinement_candidates": [
+    {
+      "orientation": "h",
+      "original_axis": 5,
+      "refined_axis": 2,
+      "accepted": false,
+      "original_score": 24.4,
+      "refined_score": 26.65,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        187,
+        78,
+        10,
+        10
+      ]
+    },
+    {
+      "orientation": "v",
+      "original_axis": 3,
+      "refined_axis": 3,
+      "accepted": false,
+      "original_score": 28.0,
+      "refined_score": 28.0,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        187,
+        78,
+        10,
+        10
+      ]
+    },
+    {
+      "orientation": "h",
+      "original_axis": 18,
+      "refined_axis": 18,
+      "accepted": false,
+      "original_score": 36.4,
+      "refined_score": 36.4,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        263,
+        78,
+        13,
+        43
+      ]
+    },
+    {
+      "orientation": "v",
+      "original_axis": 6,
+      "refined_axis": 6,
+      "accepted": false,
+      "original_score": 120.4,
+      "refined_score": 120.4,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        263,
+        78,
+        13,
+        43
+      ]
+    },
+    {
+      "orientation": "h",
+      "original_axis": 4,
+      "refined_axis": 4,
+      "accepted": false,
+      "original_score": 131.6,
+      "refined_score": 131.6,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        126,
+        178,
+        47,
+        8
+      ]
+    },
+    {
+      "orientation": "v",
+      "original_axis": 23,
+      "refined_axis": 23,
+      "accepted": false,
+      "original_score": 22.4,
+      "refined_score": 22.4,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        126,
+        178,
+        47,
+        8
+      ]
+    },
+    {
+      "orientation": "h",
+      "original_axis": 4,
+      "refined_axis": 4,
+      "accepted": false,
+      "original_score": 22.4,
+      "refined_score": 22.4,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        179,
+        179,
+        8,
+        7
+      ]
+    },
+    {
+      "orientation": "v",
+      "original_axis": 4,
+      "refined_axis": 2,
+      "accepted": false,
+      "original_score": 17.2,
+      "refined_score": 18.7,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        179,
+        179,
+        8,
+        7
+      ]
+    },
+    {
+      "orientation": "h",
+      "original_axis": 8,
+      "refined_axis": 8,
+      "accepted": false,
+      "original_score": 22.4,
+      "refined_score": 22.4,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        276,
+        311,
+        8,
+        16
+      ]
+    },
+    {
+      "orientation": "v",
+      "original_axis": 3,
+      "refined_axis": 0,
+      "accepted": false,
+      "original_score": 42.4,
+      "refined_score": 43.45,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        276,
+        311,
+        8,
+        16
+      ]
+    },
+    {
+      "orientation": "h",
+      "original_axis": 30,
+      "refined_axis": 9,
+      "accepted": true,
+      "original_score": 27.6,
+      "refined_score": 59.75,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        80,
+        508,
+        61,
+        50
+      ]
+    },
+    {
+      "orientation": "v",
+      "original_axis": 23,
+      "refined_axis": 49,
+      "accepted": true,
+      "original_score": 24.0,
+      "refined_score": 37.1,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        80,
+        508,
+        61,
+        50
+      ]
+    },
+    {
+      "orientation": "v",
+      "original_axis": 52,
+      "refined_axis": 52,
+      "accepted": false,
+      "original_score": 48.8,
+      "refined_score": 48.8,
+      "max_refine_shift": 38,
+      "component_bbox": [
+        80,
+        508,
+        61,
+        50
+      ]
+    }
+  ],
+  "wall_region_axis_refinement_rejected_count": 11,
+  "wall_region_axis_refinement_notes": [
+    "local_projection_density",
+    "support_continuity",
+    "bounded_axis_shift",
+    "refine_only_if_score_improves"
+  ],
+  "orthogonal_clean_enabled": true,
+  "orthogonal_clean_count": 5,
+  "orthogonal_clean_segments": [
+    [
+      80,
+      184,
+      194,
+      184
+    ],
+    [
+      269,
+      318,
+      469,
+      318
+    ],
+    [
+      180,
+      78,
+      180,
+      171
+    ],
+    [
+      276,
+      78,
+      276,
+      237
+    ],
+    [
+      279,
+      295,
+      279,
+      557
+    ]
+  ],
+  "orthogonal_clean_used_as_final": false,
+  "orthogonal_clean_reason": "legacy_or_alt_score_better",
+  "orthogonal_clean_rejected_short": 1557,
+  "orthogonal_clean_rejected_outer": 0,
+  "orthogonal_clean_rejected_symbolic": 0,
+  "line_evidence_enabled": true,
+  "line_evidence_count": 4,
+  "line_evidence_segments": [
+    [
+      80,
+      184,
+      193,
+      184
+    ],
+    [
+      269,
+      316,
+      469,
+      316
+    ],
+    [
+      274,
+      400,
+      274,
+      557
+    ],
+    [
+      276,
+      78,
+      276,
+      236
+    ]
+  ],
+  "line_evidence_used_as_final": false,
+  "line_evidence_reason": "legacy_or_alt_score_better",
+  "line_evidence_rejected_short": 0,
+  "line_evidence_rejected_outer": 0,
+  "line_evidence_rejected_symbolic": 4,
+  "semantic_inner_mask_enabled": true,
+  "semantic_inner_mask_pixels": 25268,
+  "semantic_non_axis_pixels": 933,
+  "semantic_axis_seed_pixels": 31673,
+  "semantic_inner_count": 6,
+  "semantic_inner_segments": [
+    [
+      53,
+      181,
+      189,
+      181
+    ],
+    [
+      276,
+      296,
+      340,
+      296
+    ],
+    [
+      268,
+      318,
+      496,
+      318
+    ],
+    [
+      280,
+      340,
+      340,
+      340
+    ],
+    [
+      268,
+      51,
+      268,
+      235
+    ],
+    [
+      275,
+      399,
+      275,
+      583
+    ]
+  ],
+  "semantic_inner_used_as_final": false,
+  "semantic_inner_reason": "legacy_or_alt_score_better",
+  "clean_plan_mode_enabled": true,
+  "clean_plan_mode_count": 4,
+  "clean_plan_mode_segments": [
+    [
+      53,
+      182,
+      194,
+      182
+    ],
+    [
+      268,
+      310,
+      496,
+      310
+    ],
+    [
+      184,
+      51,
+      184,
+      171
+    ],
+    [
+      274,
+      51,
+      274,
+      583
+    ]
+  ],
+  "clean_plan_mode_used_as_final": false,
+  "clean_plan_mode_reason": "parallel_candidate_only",
+  "clean_plan_mode_score": 215.36,
+  "clean_plan_mode_group_count": 6,
+  "clean_plan_mode_consensus_kept": 4,
+  "clean_plan_mode_single_source_kept": 0,
+  "clean_plan_mode_anchor_supplement_kept": 0,
+  "clean_plan_mode_clean_like": true,
+  "clean_plan_mode_rejected_outer": 0,
+  "clean_plan_mode_rejected_symbolic": 0,
+  "clean_plan_mode_sources": {
+    "raw_axis": 7,
+    "line_evidence": 4,
+    "orthogonal": 5,
+    "semantic": 6,
+    "raw_candidate": 7
+  },
+  "line_evidence_supplement_enabled": true,
+  "line_evidence_supplement_count": 4,
+  "line_evidence_supplement_segments": [
+    [
+      53,
+      181,
+      189,
+      181
+    ],
+    [
+      268,
+      316,
+      496,
+      316
+    ],
+    [
+      268,
+      51,
+      268,
+      235
+    ],
+    [
+      275,
+      399,
+      275,
+      583
+    ]
+  ],
+  "line_evidence_supplement_added_segments": [],
+  "line_evidence_supplement_used_as_final": false,
+  "line_evidence_supplement_reason": "line_evidence_supplement_not_enough_additions",
+  "line_evidence_gap_rescue_enabled": true,
+  "line_evidence_gap_rescue_count": 4,
+  "line_evidence_gap_rescue_segments": [
+    [
+      53,
+      181,
+      189,
+      181
+    ],
+    [
+      268,
+      316,
+      496,
+      316
+    ],
+    [
+      268,
+      51,
+      268,
+      235
+    ],
+    [
+      275,
+      399,
+      275,
+      583
+    ]
+  ],
+  "line_evidence_gap_rescue_replacements": [],
+  "line_evidence_gap_rescue_used_as_final": false,
+  "line_evidence_gap_rescue_reason": "line_evidence_gap_rescue_no_replacements",
+  "line_evidence_axis_replace_enabled": true,
+  "line_evidence_axis_replace_count": 4,
+  "line_evidence_axis_replace_segments": [
+    [
+      74,
+      184,
+      189,
+      184
+    ],
+    [
+      268,
+      316,
+      496,
+      316
+    ],
+    [
+      274,
+      72,
+      274,
+      235
+    ],
+    [
+      275,
+      399,
+      275,
+      583
+    ]
+  ],
+  "line_evidence_axis_replace_replacements": [
+    {
+      "legacy_line": [
+        53,
+        181,
+        189,
+        181
+      ],
+      "replacement_line": [
+        74,
+        184,
+        189,
+        184
+      ],
+      "source_candidate": [
+        80,
+        184,
+        193,
+        184
+      ],
+      "axis_shift": 3,
+      "score_gain": 0.84
+    },
+    {
+      "legacy_line": [
+        268,
+        51,
+        268,
+        235
+      ],
+      "replacement_line": [
+        274,
+        72,
+        274,
+        235
+      ],
+      "source_candidate": [
+        274,
+        78,
+        274,
+        236
+      ],
+      "axis_shift": 6,
+      "score_gain": 0.84
+    }
+  ],
+  "line_evidence_axis_replace_used_as_final": false,
+  "line_evidence_axis_replace_reason": "line_evidence_axis_replace_no_replacements",
+  "line_evidence_partition_enabled": true,
+  "line_evidence_partition_count": 4,
+  "line_evidence_partition_segments": [
+    [
+      53,
+      181,
+      189,
+      181
+    ],
+    [
+      268,
+      316,
+      496,
+      316
+    ],
+    [
+      268,
+      51,
+      268,
+      235
+    ],
+    [
+      275,
+      399,
+      275,
+      583
+    ]
+  ],
+  "line_evidence_partition_replacements": [],
+  "line_evidence_partition_used_as_final": false,
+  "line_evidence_partition_reason": "line_evidence_partition_no_replacements",
+  "axis_snap_enabled": true,
+  "axis_snap_tol": 22,
+  "axis_snap_cluster_count_vertical": 10,
+  "axis_snap_cluster_count_horizontal": 11,
+  "axis_grid_vertical": [
+    60,
+    100,
+    147,
+    185,
+    275,
+    319,
+    386,
+    417,
+    460,
+    493
+  ],
+  "axis_grid_horizontal": [
+    59,
+    104,
+    145,
+    192,
+    221,
+    314,
+    339,
+    430,
+    474,
+    512,
+    574
+  ],
+  "axis_grid_scores": {
+    "v": [
+      {
+        "axis": 60,
+        "score": 306.45,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 17
+      },
+      {
+        "axis": 100,
+        "score": 160.2,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 57
+      },
+      {
+        "axis": 147,
+        "score": 229.875,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 104
+      },
+      {
+        "axis": 185,
+        "score": 115.65,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 142
+      },
+      {
+        "axis": 275,
+        "score": 585.58,
+        "support_segment_count": 2,
+        "strong_segment_count": 2,
+        "near_outer_distance": 229
+      },
+      {
+        "axis": 319,
+        "score": 211.79,
+        "support_segment_count": 2,
+        "strong_segment_count": 0,
+        "near_outer_distance": 185
+      },
+      {
+        "axis": 386,
+        "score": 520.2,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 118
+      },
+      {
+        "axis": 417,
+        "score": 135.0,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 87
+      },
+      {
+        "axis": 460,
+        "score": 522.0,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 44
+      },
+      {
+        "axis": 493,
+        "score": 248.85,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 11
+      }
+    ],
+    "h": [
+      {
+        "axis": 59,
+        "score": 262.575,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 18
+      },
+      {
+        "axis": 104,
+        "score": 184.725,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 63
+      },
+      {
+        "axis": 145,
+        "score": 131.96,
+        "support_segment_count": 1,
+        "strong_segment_count": 0,
+        "near_outer_distance": 104
+      },
+      {
+        "axis": 192,
+        "score": 435.185,
+        "support_segment_count": 1,
+        "strong_segment_count": 1,
+        "near_outer_distance": 151
+      },
+      {
+        "axis": 221,
+        "score": 169.46,
+        "support_segment_count": 1,
+        "strong_segment_count": 0,
+        "near_outer_distance": 180
+      },
+      {
+        "axis": 314,
+        "score": 387.695,
+        "support_segment_count": 3,
+        "strong_segment_count": 3,
+        "near_outer_distance": 273
+      },
+      {
+        "axis": 339,
+        "score": 42.095,
+        "support_segment_count": 3,
+        "strong_segment_count": 0,
+        "near_outer_distance": 253
+      },
+      {
+        "axis": 430,
+        "score": 596.7,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 162
+      },
+      {
+        "axis": 474,
+        "score": 594.0,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 118
+      },
+      {
+        "axis": 512,
+        "score": 96.975,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 80
+      },
+      {
+        "axis": 574,
+        "score": 281.625,
+        "support_segment_count": 0,
+        "strong_segment_count": 0,
+        "near_outer_distance": 18
+      }
+    ]
+  },
+  "axis_snap_candidates": [
+    {
+      "segment": [
+        53,
+        181,
+        189,
+        181
+      ],
+      "target_axis": 192,
+      "snap_distance": 11,
+      "target_axis_score": 435.185,
+      "current_axis_score": 435.185,
+      "decision_score": -1.32,
+      "accepted": false
+    },
+    {
+      "segment": [
+        276,
+        296,
+        340,
+        296
+      ],
+      "target_axis": 314,
+      "snap_distance": 18,
+      "target_axis_score": 387.695,
+      "current_axis_score": 387.695,
+      "decision_score": 3.69,
+      "accepted": true
+    },
+    {
+      "segment": [
+        268,
+        318,
+        496,
+        318
+      ],
+      "target_axis": 314,
+      "snap_distance": 4,
+      "target_axis_score": 387.695,
+      "current_axis_score": 387.695,
+      "decision_score": -0.48,
+      "accepted": false
+    },
+    {
+      "segment": [
+        280,
+        340,
+        340,
+        340
+      ],
+      "target_axis": 314,
+      "snap_distance": 26,
+      "target_axis_score": 387.695,
+      "current_axis_score": 42.095,
+      "decision_score": 469.29,
+      "accepted": true
+    },
+    {
+      "segment": [
+        268,
+        51,
+        268,
+        235
+      ],
+      "target_axis": 275,
+      "snap_distance": 7,
+      "target_axis_score": 585.58,
+      "current_axis_score": 585.58,
+      "decision_score": -0.84,
+      "accepted": false
+    }
+  ],
+  "axis_snapped_segment_count": 2,
+  "axis_snap_aborted_reason": null,
+  "axis_snapped_segments_before_after": [
+    {
+      "before": [
+        276,
+        296,
+        340,
+        296
+      ],
+      "after": [
+        276,
+        314,
+        340,
+        314
+      ],
+      "target_axis": 314
+    },
+    {
+      "before": [
+        280,
+        340,
+        340,
+        340
+      ],
+      "after": [
+        280,
+        314,
+        340,
+        314
+      ],
+      "target_axis": 314
+    }
+  ],
+  "thresholds": {
+    "deskew_angle_deg": 0.0,
+    "horizontal_kernel": 29,
+    "vertical_kernel": 29,
+    "pair_merge_tol": 11,
+    "opening_min_gap": 22,
+    "opening_max_gap": 120,
+    "opening_scan_step": 4,
+    "outer_edge_offset": 8,
+    "collinear_gap_tol": 110,
+    "room_min_area": 1452
+  }
+}

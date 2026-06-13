@@ -1,0 +1,315 @@
+INFO:     127.0.0.1:56836 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12994 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7070 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12994 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12994 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12994 - "OPTIONS /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12994 - "GET /users/me/projects HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:33524 - "GET /projects/377f6e5c-2324-480c-8393-9844881d7da8?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:23852 - "GET /uploads/377f6e5c-2324-480c-8393-9844881d7da8/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46750 - "OPTIONS /projects/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46750 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=11 filtered_wall_count=11 rejected_segment_count=35 final_inner_wall_count=3
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'pattern_gap_out_of_range': 4, 'pattern_not_enough_parallel_lines': 18, 'pattern_gap_irregular': 1, 'horizontal_bbox_out_of_range': 1, 'contour_area_too_small': 1, 'estimated_thickness_too_small': 1, 'rejected_outer_edge_proximity': 8, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=2 raw_windows=3 final_doors=2 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+[detect_openings] floor=floor_1_raw_axis_partitioned_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_partitioned_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:46750 - "GET /projects/b43729e8-205b-4bc1-93b7-ca4466891148?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46750 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13918 - "GET /uploads/b43729e8-205b-4bc1-93b7-ca4466891148/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2617 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=11 filtered_wall_count=13 rejected_segment_count=28 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'pattern_gap_out_of_range': 8, 'pattern_not_enough_parallel_lines': 10, 'pattern_gap_irregular': 1, 'rejected_outer_edge_proximity': 8, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=3 raw_windows=2 final_doors=1 final_windows=2
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 2}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=3 raw_windows=2 final_doors=0 final_windows=2
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=2 raw_windows=2 final_doors=0 final_windows=2
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=2 final_doors=0 final_windows=2
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 3}
+INFO:     127.0.0.1:2617 - "GET /projects/d344b401-154e-4b1a-9702-61689d4cc28f?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2617 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52234 - "GET /uploads/d344b401-154e-4b1a-9702-61689d4cc28f/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:27966 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:27966 - "GET /projects/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:27966 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:31487 - "GET /uploads/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:31443 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:31444 - "GET /projects/ca3d3c89-8c0a-4c1f-82e8-77a3a40161a4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59927 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:26675 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59927 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59927 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59927 - "OPTIONS /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59927 - "GET /users/me/projects HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:6535 - "GET /projects/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33505 - "GET /uploads/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c/floor_1.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:27988 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:27989 - "GET /projects/dfacb8f5-635c-4f99-9f69-7b758fc97655 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:18090 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49798 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:18090 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:18090 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:18090 - "OPTIONS /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:18090 - "GET /users/me/projects HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:27743 - "GET /projects/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52076 - "GET /uploads/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c/floor_1.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:28365 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:28369 - "GET /projects/60977190-58d2-4e03-937f-189fb2917a35 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /users/me/projects HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:1680 - "GET /projects/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:18137 - "GET /uploads/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c/floor_1.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:6835 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:6836 - "GET /projects/9511de9b-2a8f-4121-a4ce-b669c070e1cd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56532 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6320 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56532 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56532 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56532 - "OPTIONS /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6320 - "GET /users/me/projects HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:23043 - "GET /projects/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:28870 - "GET /uploads/0a20ce0a-0d5e-47ef-88c5-9e0d626ae64c/floor_1.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:29515 - "OPTIONS /projects/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:29515 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:29515 - "GET /projects/6cda302f-adcc-4991-978b-8d43e3d3f74b?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:29515 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19805 - "GET /uploads/6cda302f-adcc-4991-978b-8d43e3d3f74b/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50222 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=19 filtered_wall_count=8 rejected_segment_count=33 final_inner_wall_count=6
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'cluster_near_outer_polygon': 1, 'pattern_gap_out_of_range': 5, 'pattern_not_enough_parallel_lines': 15, 'horizontal_bbox_out_of_range': 3, 'unsupported_run_split': 4, 'contour_area_too_small': 1, 'vertical_bbox_out_of_range': 3, 'rejected_outer_edge_proximity': 0, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=0 final_doors=3 final_windows=0
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=4 raw_windows=0 final_doors=0 final_windows=0
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=3 raw_windows=0 final_doors=0 final_windows=0
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 3}
+INFO:     127.0.0.1:50222 - "GET /projects/c369aaad-5ee2-4a46-ac78-6e0989731d44?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50222 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:29714 - "GET /uploads/c369aaad-5ee2-4a46-ac78-6e0989731d44/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=13 filtered_wall_count=14 rejected_segment_count=39 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'cluster_near_outer_polygon': 2, 'pattern_gap_out_of_range': 5, 'pattern_not_enough_parallel_lines': 16, 'pattern_gap_irregular': 3, 'unsupported_run_split': 2, 'rejected_outer_edge_proximity': 10, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=0 raw_windows=0 final_doors=0 final_windows=4
+[detect_openings] floor=floor_1 rejected_candidate_reasons={}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=0 raw_windows=0 final_doors=0 final_windows=4
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=2 raw_windows=0 final_doors=0 final_windows=4
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+[detect_openings] floor=floor_1_raw_axis_partitioned_eval raw_doors=0 raw_windows=0 final_doors=0 final_windows=4
+[detect_openings] floor=floor_1_raw_axis_partitioned_eval rejected_candidate_reasons={}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=0 raw_windows=0 final_doors=0 final_windows=4
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={}
+INFO:     127.0.0.1:51904 - "GET /projects/90eaef59-bc56-4880-b728-8d8476ea0964?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19065 - "GET /uploads/90eaef59-bc56-4880-b728-8d8476ea0964/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19866 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=21 filtered_wall_count=17 rejected_segment_count=50 final_inner_wall_count=5
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'pattern_not_enough_parallel_lines': 31, 'pattern_gap_out_of_range': 4, 'pattern_gap_irregular': 1, 'contour_area_too_small': 2, 'horizontal_bbox_out_of_range': 1, 'unsupported_run_split': 1, 'vertical_bbox_out_of_range': 1, 'rejected_outer_edge_proximity': 8, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=2 raw_windows=1 final_doors=2 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=5 raw_windows=1 final_doors=0 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=1 final_doors=0 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 5}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=1 final_doors=0 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 3}
+INFO:     127.0.0.1:19866 - "GET /projects/dfa67a16-260d-4911-a5a4-3caeb2af97e3?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19866 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10583 - "GET /uploads/dfa67a16-260d-4911-a5a4-3caeb2af97e3/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38884 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=13 filtered_wall_count=16 rejected_segment_count=152 final_inner_wall_count=7
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'pattern_not_enough_parallel_lines': 124, 'pattern_gap_out_of_range': 10, 'pattern_gap_irregular': 3, 'estimated_thickness_too_small': 4, 'rejected_outer_edge_proximity': 10, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=1 raw_windows=1 final_doors=0 final_windows=6
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=1 raw_windows=1 final_doors=0 final_windows=6
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=3 raw_windows=1 final_doors=0 final_windows=6
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_partitioned_eval raw_doors=1 raw_windows=1 final_doors=0 final_windows=6
+[detect_openings] floor=floor_1_raw_axis_partitioned_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=1 raw_windows=1 final_doors=0 final_windows=6
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+INFO:     127.0.0.1:38884 - "GET /projects/ba31561f-0314-47e5-bd76-b9d959429873?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38884 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40391 - "GET /uploads/ba31561f-0314-47e5-bd76-b9d959429873/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44268 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=45 filtered_wall_count=5 rejected_segment_count=124 final_inner_wall_count=12
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'cluster_near_outer_polygon': 1, 'pattern_gap_out_of_range': 17, 'pattern_gap_irregular': 9, 'pattern_not_enough_parallel_lines': 51, 'unsupported_run_split': 16, 'estimated_thickness_too_small': 18, 'horizontal_bbox_out_of_range': 4, 'vertical_bbox_out_of_range': 2, 'rejected_outer_edge_proximity': 5, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=6 raw_windows=5 final_doors=6 final_windows=5
+[detect_openings] floor=floor_1 rejected_candidate_reasons={}
+INFO:     127.0.0.1:44268 - "GET /projects/0fd2972e-b6cd-47b7-afbb-42fe7eeb9b66?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44268 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6712 - "GET /uploads/0fd2972e-b6cd-47b7-afbb-42fe7eeb9b66/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2814 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37248 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2814 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2814 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2814 - "OPTIONS /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2814 - "GET /users/me/projects HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=45 filtered_wall_count=5 rejected_segment_count=124 final_inner_wall_count=12
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'cluster_near_outer_polygon': 1, 'pattern_gap_out_of_range': 17, 'pattern_gap_irregular': 9, 'pattern_not_enough_parallel_lines': 51, 'unsupported_run_split': 16, 'estimated_thickness_too_small': 18, 'horizontal_bbox_out_of_range': 4, 'vertical_bbox_out_of_range': 2, 'rejected_outer_edge_proximity': 5, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=6 raw_windows=5 final_doors=6 final_windows=5
+[detect_openings] floor=floor_1 rejected_candidate_reasons={}
+INFO:     127.0.0.1:52744 - "GET /projects/0fd2972e-b6cd-47b7-afbb-42fe7eeb9b66?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54052 - "GET /uploads/0fd2972e-b6cd-47b7-afbb-42fe7eeb9b66/floor_1.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49308 - "OPTIONS /projects/upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=14 filtered_wall_count=16 rejected_segment_count=36 final_inner_wall_count=4
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 2, 'cluster_not_enough_lines': 1, 'pattern_gap_out_of_range': 3, 'pattern_not_enough_parallel_lines': 15, 'pattern_gap_irregular': 5, 'unsupported_run_split': 1, 'rejected_outer_edge_proximity': 9, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 3}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=2 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=5 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval raw_doors=3 raw_windows=3 final_doors=1 final_windows=3
+[detect_openings] floor=floor_1_clean_plan_topology_recovery_eval rejected_candidate_reasons={'door_failed_room_support': 2}
+INFO:     127.0.0.1:49308 - "GET /projects/6ddfe4f3-9d39-4c89-87de-adca6197218a?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52438 - "GET /uploads/6ddfe4f3-9d39-4c89-87de-adca6197218a/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47381 - "POST /projects/upload HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=19 filtered_wall_count=8 rejected_segment_count=33 final_inner_wall_count=6
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'cluster_near_outer_polygon': 1, 'pattern_gap_out_of_range': 5, 'pattern_not_enough_parallel_lines': 15, 'horizontal_bbox_out_of_range': 3, 'unsupported_run_split': 4, 'contour_area_too_small': 1, 'vertical_bbox_out_of_range': 3, 'rejected_outer_edge_proximity': 0, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=0 final_doors=3 final_windows=0
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=4 raw_windows=0 final_doors=0 final_windows=0
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=3 raw_windows=0 final_doors=0 final_windows=0
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 3}
+INFO:     127.0.0.1:47381 - "GET /projects/84df9ef1-fac8-42db-9f3d-ac73b1c9010d?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47381 - "GET /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3876 - "GET /uploads/84df9ef1-fac8-42db-9f3d-ac73b1c9010d/floor_1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:30145 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6104 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:30145 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:30145 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:30145 - "OPTIONS /users/me/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:30145 - "GET /users/me/projects HTTP/1.1" 200 OK
+[extract_inner_walls] floor=floor_1 raw_candidate_wall_count=19 filtered_wall_count=8 rejected_segment_count=33 final_inner_wall_count=6
+[extract_inner_walls] floor=floor_1 reject_reasons={'cluster_gap_out_of_range': 1, 'cluster_near_outer_polygon': 1, 'pattern_gap_out_of_range': 5, 'pattern_not_enough_parallel_lines': 15, 'horizontal_bbox_out_of_range': 3, 'unsupported_run_split': 4, 'contour_area_too_small': 1, 'vertical_bbox_out_of_range': 3, 'rejected_outer_edge_proximity': 0, 'rejected_symbolic_vertical_lines': 0}
+[detect_openings] floor=floor_1 raw_doors=4 raw_windows=0 final_doors=3 final_windows=0
+[detect_openings] floor=floor_1 rejected_candidate_reasons={'door_failed_room_support': 1}
+[detect_openings] floor=floor_1_raw_axis_recon_eval raw_doors=4 raw_windows=0 final_doors=0 final_windows=0
+[detect_openings] floor=floor_1_raw_axis_recon_eval rejected_candidate_reasons={'door_failed_room_support': 4}
+[detect_openings] floor=floor_1_clean_plan_mode_eval raw_doors=3 raw_windows=0 final_doors=0 final_windows=0
+[detect_openings] floor=floor_1_clean_plan_mode_eval rejected_candidate_reasons={'door_failed_room_support': 3}
+INFO:     127.0.0.1:44137 - "GET /projects/84df9ef1-fac8-42db-9f3d-ac73b1c9010d?floor_height=3.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:27004 - "GET /uploads/84df9ef1-fac8-42db-9f3d-ac73b1c9010d/floor_1.png HTTP/1.1" 304 Not Modified

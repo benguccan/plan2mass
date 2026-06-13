@@ -195,30 +195,32 @@ export function classifyOpenings({
 
   windows.forEach((point, index) => {
     const opening = makeOpening(`window-${index}`, "window", point, windowWidthPx)
-
-    const outerBest = findBestCandidate(opening, graph.walls, {
-      allowedKinds: ["outer"],
-      maxDistancePx: cfg.outerWindowDistancePx,
+    const allowedKinds = opening.preferredKinds?.length ? opening.preferredKinds : ["outer"]
+    const best = findBestCandidate(opening, graph.walls, {
+      allowedKinds,
+      maxDistancePx: allowedKinds.includes("inner") && !allowedKinds.includes("outer")
+        ? cfg.innerDoorDistancePx
+        : cfg.outerWindowDistancePx,
       projectionMargin: cfg.projectionMargin,
     })
 
-    if (outerBest) {
+    if (best) {
       console.log("[classifyOpenings] opening classified", {
         openingId: opening.id,
         type: opening.type,
         centerPoint: opening.point,
         widthPx: opening.widthPx,
-        chosenHostWall: outerBest.wall.id,
-        hostWallType: outerBest.wall.kind,
-        score: roundDebugValue(outerBest.score),
-        rejectedCandidates: outerBest?.debug?.rejectedCandidates || [],
+        chosenHostWall: best.wall.id,
+        hostWallType: best.wall.kind,
+        score: roundDebugValue(best.score),
+        rejectedCandidates: best?.debug?.rejectedCandidates || [],
       })
       classified.push({
         ...opening,
-        preferredKinds: ["outer"],
-        preferredWallId: outerBest.wall.id,
-        preferredProjection: outerBest.projected,
-        previewMatch: outerBest,
+        preferredKinds: allowedKinds,
+        preferredWallId: opening.preferredWallId || best.wall.id,
+        preferredProjection: best.projected,
+        previewMatch: best,
       })
       return
     }
@@ -229,7 +231,7 @@ export function classifyOpenings({
       type: opening.type,
       centerPoint: opening.point,
       widthPx: opening.widthPx,
-      rejectedCandidates: outerBest?.debug?.rejectedCandidates || [],
+      preferredKinds: allowedKinds,
     })
   })
 
@@ -507,12 +509,17 @@ function polygonToSegments(polygon) {
 function makeOpening(id, type, point, widthPx) {
   const sourceWidth = Math.max(24, point.width || widthPx)
   const clearWidthPx = sourceWidth * (type === "door" ? 0.42 : 0.46)
+  const preferredKinds = Array.isArray(point.preferredKinds)
+    ? point.preferredKinds.filter((kind) => kind === "outer" || kind === "inner")
+    : []
   return {
     id,
     type,
     point: { x: point.x, y: point.y },
     widthPx: sourceWidth,
     clearWidthPx,
+    preferredKinds,
+    preferredWallId: typeof point.preferredWallId === "string" ? point.preferredWallId : null,
   }
 }
 

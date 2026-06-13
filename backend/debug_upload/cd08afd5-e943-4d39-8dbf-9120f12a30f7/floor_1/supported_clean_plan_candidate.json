@@ -1,0 +1,152 @@
+{
+  "floor_index": 1,
+  "polygon": [
+    [
+      37,
+      40
+    ],
+    [
+      601,
+      40
+    ],
+    [
+      601,
+      680
+    ],
+    [
+      37,
+      680
+    ]
+  ],
+  "inner_walls": [
+    [
+      80,
+      288,
+      246,
+      288
+    ],
+    [
+      314,
+      288,
+      560,
+      288
+    ],
+    [
+      80,
+      456,
+      258,
+      456
+    ],
+    [
+      238,
+      271,
+      238,
+      343
+    ],
+    [
+      238,
+      399,
+      238,
+      463
+    ],
+    [
+      328,
+      447,
+      328,
+      639
+    ],
+    [
+      346,
+      84,
+      346,
+      312
+    ]
+  ],
+  "doors": [
+    {
+      "x": 422,
+      "y": 295,
+      "width": 264
+    },
+    {
+      "x": 346,
+      "y": 269,
+      "width": 264
+    },
+    {
+      "x": 539,
+      "y": 295,
+      "width": 264
+    },
+    {
+      "x": 188,
+      "y": 456,
+      "width": 264
+    },
+    {
+      "x": 328,
+      "y": 519,
+      "width": 264
+    }
+  ],
+  "windows": [
+    {
+      "x": 601,
+      "y": 357,
+      "width": 304
+    },
+    {
+      "x": 37,
+      "y": 344,
+      "width": 24
+    },
+    {
+      "x": 37,
+      "y": 388,
+      "width": 24
+    },
+    {
+      "x": 89,
+      "y": 680,
+      "width": 104
+    },
+    {
+      "x": 565,
+      "y": 680,
+      "width": 76
+    },
+    {
+      "x": 189,
+      "y": 40,
+      "width": 116
+    },
+    {
+      "x": 469,
+      "y": 40,
+      "width": 60
+    }
+  ],
+  "rooms": [
+    {
+      "id": 1,
+      "x": 320,
+      "y": 361
+    }
+  ],
+  "stairs": [],
+  "contract_meta": {
+    "enabled": true,
+    "eligible": true,
+    "score": 0.875,
+    "raw_polygon_axis_ratio": 1.0,
+    "polygon_axis_ratio": 1.0,
+    "normalized_polygon_point_count": 4,
+    "normalized_inner_wall_count": 7,
+    "inner_wall_axis_ratio": 1.0,
+    "endpoint_snap_count": 0,
+    "stair_filtered_segment_count": 0,
+    "isolated_top_spur_filtered_count": 0,
+    "symbolic_stair_cluster_count": 0,
+    "reasons": []
+  }
+}

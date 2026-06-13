@@ -1,0 +1,166 @@
+{
+  "floor_index": 1,
+  "polygon": [
+    [
+      44,
+      45
+    ],
+    [
+      1367,
+      45
+    ],
+    [
+      1367,
+      727
+    ],
+    [
+      44,
+      727
+    ]
+  ],
+  "inner_walls": [
+    [
+      547,
+      290,
+      726,
+      290
+    ],
+    [
+      94,
+      384,
+      459,
+      384
+    ],
+    [
+      913,
+      384,
+      1320,
+      384
+    ],
+    [
+      560,
+      501,
+      821,
+      501
+    ],
+    [
+      458,
+      95,
+      458,
+      309
+    ],
+    [
+      458,
+      479,
+      458,
+      680
+    ],
+    [
+      652,
+      500,
+      652,
+      680
+    ],
+    [
+      914,
+      365,
+      914,
+      680
+    ]
+  ],
+  "doors": [
+    {
+      "x": 457,
+      "y": 256,
+      "width": 264
+    },
+    {
+      "x": 970,
+      "y": 385,
+      "width": 264
+    },
+    {
+      "x": 394,
+      "y": 383,
+      "width": 264
+    },
+    {
+      "x": 914,
+      "y": 468,
+      "width": 264
+    },
+    {
+      "x": 914,
+      "y": 559,
+      "width": 264
+    },
+    {
+      "x": 458,
+      "y": 559,
+      "width": 264
+    }
+  ],
+  "windows": [
+    {
+      "x": 45,
+      "y": 102,
+      "width": 464
+    },
+    {
+      "x": 45,
+      "y": 666,
+      "width": 480
+    },
+    {
+      "x": 524,
+      "y": 673,
+      "width": 264
+    },
+    {
+      "x": 1367,
+      "y": 105,
+      "width": 432
+    },
+    {
+      "x": 1367,
+      "y": 669,
+      "width": 464
+    }
+  ],
+  "rooms": [
+    {
+      "id": 1,
+      "x": 706,
+      "y": 385
+    }
+  ],
+  "stairs": [
+    {
+      "id": "upload-stair-fallback-1",
+      "bounds": [
+        710,
+        119,
+        923,
+        235
+      ],
+      "direction": "down",
+      "steps": 4,
+      "orientation_hint": "h"
+    }
+  ],
+  "contract_meta": {
+    "enabled": true,
+    "eligible": true,
+    "score": 0.875,
+    "raw_polygon_axis_ratio": 0.75,
+    "polygon_axis_ratio": 1.0,
+    "normalized_polygon_point_count": 4,
+    "normalized_inner_wall_count": 12,
+    "inner_wall_axis_ratio": 1.0,
+    "endpoint_snap_count": 0,
+    "stair_filtered_segment_count": 4,
+    "isolated_top_spur_filtered_count": 0,
+    "symbolic_stair_cluster_count": 0,
+    "reasons": []
+  }
+}

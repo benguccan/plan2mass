@@ -1,0 +1,117 @@
+{
+  "floor_index": 1,
+  "polygon": [
+    [
+      246,
+      157
+    ],
+    [
+      1356,
+      157
+    ],
+    [
+      1356,
+      762
+    ],
+    [
+      246,
+      762
+    ]
+  ],
+  "inner_walls": [
+    [
+      246,
+      460,
+      728,
+      460
+    ],
+    [
+      910,
+      460,
+      1356,
+      460
+    ],
+    [
+      246,
+      745,
+      333,
+      745
+    ],
+    [
+      266,
+      665,
+      266,
+      762
+    ],
+    [
+      580,
+      455,
+      580,
+      560
+    ],
+    [
+      580,
+      632,
+      580,
+      762
+    ],
+    [
+      820,
+      157,
+      820,
+      464
+    ],
+    [
+      928,
+      455,
+      928,
+      590
+    ]
+  ],
+  "doors": [],
+  "windows": [
+    {
+      "x": 759,
+      "y": 702,
+      "width": 198
+    },
+    {
+      "x": 246,
+      "y": 178,
+      "width": 78
+    },
+    {
+      "x": 1356,
+      "y": 212,
+      "width": 110
+    },
+    {
+      "x": 1356,
+      "y": 707,
+      "width": 110
+    }
+  ],
+  "rooms": [
+    {
+      "id": 1,
+      "x": 807,
+      "y": 455
+    }
+  ],
+  "stairs": [],
+  "contract_meta": {
+    "enabled": true,
+    "eligible": true,
+    "score": 0.825,
+    "raw_polygon_axis_ratio": 0.7778,
+    "polygon_axis_ratio": 1.0,
+    "normalized_polygon_point_count": 4,
+    "normalized_inner_wall_count": 8,
+    "inner_wall_axis_ratio": 1.0,
+    "endpoint_snap_count": 6,
+    "stair_filtered_segment_count": 0,
+    "isolated_top_spur_filtered_count": 0,
+    "symbolic_stair_cluster_count": 0,
+    "reasons": []
+  }
+}
