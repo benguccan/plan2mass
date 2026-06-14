@@ -325,6 +325,7 @@ function buildLocalPlanSvgDataUrl(floor) {
 }
 
 function App() {
+  const GLB_EXPORT_TIMEOUT_MS = 20000
   const canvasRef = useRef(null)
   const viewerPanelRef = useRef(null)
   const modelRef = useRef(null)
@@ -917,7 +918,13 @@ function App() {
       resetPreparedGlb()
       setGlbDownloadState("preparing")
       setGlbDownloadMessage(`Preparing GLB for ${filenameBase.replace("plan2mass-", "").replaceAll("-", " ")}...`)
-      const { blob, filename } = await viewerRef.current.exportGlbBlob(filenameBase)
+      const exportPromise = viewerRef.current.exportGlbBlob(filenameBase)
+      const timeoutPromise = new Promise((_, reject) => {
+        window.setTimeout(() => {
+          reject(new Error("GLB export timed out. Please try again."))
+        }, GLB_EXPORT_TIMEOUT_MS)
+      })
+      const { blob, filename } = await Promise.race([exportPromise, timeoutPromise])
       const url = window.URL.createObjectURL(blob)
       setGlbDownloadUrl(url)
       setGlbDownloadName(filename || `${filenameBase}.glb`)
@@ -1041,6 +1048,9 @@ function App() {
   const currentSummary = activeFloor === "building"
     ? project?.summary || {}
     : activeFloorData?.summary || {}
+  const statsScopeTitle = activeFloor === "building"
+    ? "BUILDING TOTALS"
+    : `FLOOR ${(activeFloorData?.floor_index ?? Number(resolvedActiveFloor) + 1) || 1} SUMMARY`
   const projectHeight = Number(project?.building_height || floors.length * floorHeight || 0).toFixed(1)
   const isMediumViewport = viewportWidth < 1480
   const isNarrowViewport = viewportWidth < 1180
@@ -1898,7 +1908,6 @@ function App() {
                 <button style={buttonStyleSecondary} onClick={openViewer}>◫ Open Viewer</button>
                 <button style={buttonStyleSecondary} onClick={downloadScreenshot}>⌁ Save Screenshot</button>
                 <button style={buttonStyleGhost} onClick={downloadModel}>⬒ Download GLB</button>
-                <button style={buttonStyleSecondary} onClick={downloadJson}>⎘ Download JSON</button>
                 <button
                   style={showGeometryDebug ? buttonStyleGhost : buttonStyleSecondary}
                   onClick={() => setShowGeometryDebug((value) => !value)}
@@ -1937,30 +1946,7 @@ function App() {
               <div style={infoTextStyle}>Rooms: {project?.summary?.room_count ?? 0}</div>
             </div>
 
-            <div style={infoPanelStyle}>
-              <div style={infoTitleStyle}>My Model History</div>
-              {!authUser ? (
-                <div style={infoTextStyle}>Sign in to keep and list your project history.</div>
-              ) : userProjects.length === 0 ? (
-                <div style={infoTextStyle}>No saved models yet. Upload a plan to start.</div>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {userProjects.slice(0, 8).map((item) => (
-                    <button
-                      key={`${item.project_id}-${item.created_at}`}
-                      style={{ ...buttonStyleSecondary, textAlign: "left" }}
-                      onClick={() => loadProject(item.project_id)}
-                    >
-                      <div style={{ fontWeight: 700 }}>{item.project_id}</div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        Floors: {item.floor_count} • {new Date(item.created_at).toLocaleString()}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
+            <div style={statsSectionTitleStyle}>{statsScopeTitle}</div>
             <div style={statsGridStyle}>
               <div style={statCardStyle}>
                 <div style={statLabelStyle}>Rooms</div>
@@ -1978,16 +1964,6 @@ function App() {
                 <div style={statLabelStyle}>Windows</div>
                 <div style={statValueStyle}>{currentSummary.window_count ?? 0}</div>
               </div>
-            </div>
-
-            <div style={progressPanelStyle}>
-              <div style={infoTitleStyle}>Analysis Steps</div>
-              {analysisSteps.map((step) => (
-                <div key={step.label} style={progressRowStyle}>
-                  <span>{step.label}</span>
-                  <span style={progressBadgeStyle}>{step.value}</span>
-                </div>
-              ))}
             </div>
 
             <div style={infoPanelStyle}>
@@ -5237,7 +5213,7 @@ const shellStyle = {
 }
 
 const pageStyle = {
-  width: "min(96vw, 1650px)",
+  width: "min(97.6vw, 1880px)",
   margin: "0 auto",
   position: "relative",
   zIndex: 1,
@@ -5914,8 +5890,8 @@ const projectHealthStyle = {
 
 const mainGridStyle = {
   display: "grid",
-  gridTemplateColumns: "280px minmax(0, 1.95fr) 280px",
-  gap: 22,
+  gridTemplateColumns: "256px minmax(0, 2.14fr) 256px",
+  gap: 26,
   alignItems: "start",
 }
 
@@ -6194,7 +6170,7 @@ const inactiveTabButtonStyle = {
 
 const infoPanelStyle = {
   marginTop: 4,
-  padding: 16,
+  padding: 18,
   borderRadius: 20,
   background: "rgba(214,185,131,0.08)",
   border: "1px solid rgba(221,195,148,0.14)",
@@ -6205,6 +6181,15 @@ const statsGridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: 10,
+}
+
+const statsSectionTitleStyle = {
+  marginTop: 16,
+  color: "#9fb8c7",
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
 }
 
 const statCardStyle = {
@@ -6285,8 +6270,8 @@ const infoTitleStyle = {
 const infoTextStyle = {
   fontSize: 13,
   color: "#d8d8d3",
-  lineHeight: 1.75,
-  marginBottom: 6,
+  lineHeight: 1.82,
+  marginBottom: 8,
 }
 
 const errorCardStyle = {
@@ -6323,14 +6308,14 @@ const workspaceColumnStyle = {
 
 const rightRailStyle = {
   display: "grid",
-  gap: 16,
+  gap: 18,
   alignContent: "start",
 }
 
 const actionRailStyle = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
-  gap: 10,
+  gap: 12,
 }
 
 const commonPanelStyle = {

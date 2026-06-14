@@ -1132,7 +1132,7 @@ function resolveSourceOpening(item, openingById) {
   return null
 }
 
-async function exportProjectGlb(project, geometryMeta, floorHeight, filenameBase) {
+async function exportProjectGlb(project, geometryMeta, activeFloor, floorHeight, filenameBase) {
   const engine = new NullEngine()
   const scene = new Scene(engine)
   const materials = createExportMaterialLibrary(scene)
@@ -1140,7 +1140,7 @@ async function exportProjectGlb(project, geometryMeta, floorHeight, filenameBase
     scene,
     project,
     geometryMeta,
-    "building",
+    activeFloor,
     floorHeight,
     materials,
     null,
@@ -2359,19 +2359,7 @@ export function createBabylonViewer({
       glb.downloadFiles()
     },
     async exportGlbBlob(filenameBase) {
-      const glb = await GLTF2Export.GLBAsync(scene, filenameBase, exportOptions)
-      const fileEntries = Object.entries(glb.glTFFiles || {})
-      const glbEntry = fileEntries.find(([name]) => name.toLowerCase().endsWith(".glb"))
-      if (!glbEntry) {
-        throw new Error("GLB blob could not be created")
-      }
-
-      const [filename, payload] = glbEntry
-      const blob = payload instanceof Blob
-        ? payload
-        : new Blob([payload], { type: "model/gltf-binary" })
-
-      return { blob, filename }
+      return exportProjectGlb(project, geometryMeta, activeFloor, floorHeight, filenameBase)
     },
     screenshot() {
       return canvas.toDataURL("image/png")
