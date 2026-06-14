@@ -2359,7 +2359,19 @@ export function createBabylonViewer({
       glb.downloadFiles()
     },
     async exportGlbBlob(filenameBase) {
-      return exportProjectGlb(project, geometryMeta, floorHeight, filenameBase)
+      const glb = await GLTF2Export.GLBAsync(scene, filenameBase, exportOptions)
+      const fileEntries = Object.entries(glb.glTFFiles || {})
+      const glbEntry = fileEntries.find(([name]) => name.toLowerCase().endsWith(".glb"))
+      if (!glbEntry) {
+        throw new Error("GLB blob could not be created")
+      }
+
+      const [filename, payload] = glbEntry
+      const blob = payload instanceof Blob
+        ? payload
+        : new Blob([payload], { type: "model/gltf-binary" })
+
+      return { blob, filename }
     },
     screenshot() {
       return canvas.toDataURL("image/png")

@@ -348,6 +348,11 @@ function App() {
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0)
   const [toasts, setToasts] = useState([])
   const [isDropActive, setIsDropActive] = useState(false)
+  const [isViewerFullscreen, setIsViewerFullscreen] = useState(false)
+  const [glbDownloadUrl, setGlbDownloadUrl] = useState("")
+  const [glbDownloadName, setGlbDownloadName] = useState("")
+  const [glbDownloadState, setGlbDownloadState] = useState("idle")
+  const [glbDownloadMessage, setGlbDownloadMessage] = useState("")
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [showGeometryDebug, setShowGeometryDebug] = useState(false)
   const [authToken, setAuthToken] = useState(() => window.localStorage.getItem(AUTH_STORAGE_KEY) || "")
@@ -886,18 +891,44 @@ function App() {
     pushToast("Returned to demo project", "success")
   }
 
-  const downloadModel = () => {
-    if (!viewerRef.current) return
+  const resetPreparedGlb = () => {
+    if (glbDownloadUrl) {
+      window.URL.revokeObjectURL(glbDownloadUrl)
+    }
+    setGlbDownloadUrl("")
+    setGlbDownloadName("")
+  }
 
-    viewerRef.current
-      .exportGlb(`${project?.project_id || "plan2mass"}-model`)
-      .then(() => {
-        pushToast("3D model exported as GLB", "success")
-      })
-      .catch((err) => {
-        console.error("3D GLB export error:", err)
-        pushToast("3D model export failed", "error")
-      })
+  const downloadModel = async () => {
+    if (!viewerRef.current) {
+      resetPreparedGlb()
+      setGlbDownloadState("error")
+      setGlbDownloadMessage("3D viewer is not ready yet.")
+      return
+    }
+
+    const filenameBase = activeFloor === "building"
+      ? "plan2mass-building"
+      : Number.isInteger(Number(activeFloor))
+        ? `plan2mass-floor-${Number(activeFloor) + 1}`
+        : "plan2mass-model"
+
+    try {
+      resetPreparedGlb()
+      setGlbDownloadState("preparing")
+      setGlbDownloadMessage(`Preparing GLB for ${filenameBase.replace("plan2mass-", "").replaceAll("-", " ")}...`)
+      const { blob, filename } = await viewerRef.current.exportGlbBlob(filenameBase)
+      const url = window.URL.createObjectURL(blob)
+      setGlbDownloadUrl(url)
+      setGlbDownloadName(filename || `${filenameBase}.glb`)
+      setGlbDownloadState("ready")
+      setGlbDownloadMessage("GLB ready. Click the save link below to download.")
+    } catch (err) {
+      console.error("3D GLB export error:", err)
+      resetPreparedGlb()
+      setGlbDownloadState("error")
+      setGlbDownloadMessage(err?.message || "3D model export failed.")
+    }
   }
 
   const floors = project?.floors || []
@@ -1007,17 +1038,49 @@ function App() {
     return buildLocalPlanSvgDataUrl(activeFloorData)
   }, [activeFloorData])
 
-  const landingPlanPreviewImage = useMemo(() => {
-    return localDemoProject.floors?.[0]?.image_url || null
-  }, [localDemoProject])
-
   const currentSummary = activeFloor === "building"
     ? project?.summary || {}
     : activeFloorData?.summary || {}
   const projectHeight = Number(project?.building_height || floors.length * floorHeight || 0).toFixed(1)
-  const isMediumViewport = viewportWidth < 1360
-  const isNarrowViewport = viewportWidth < 1080
+  const isMediumViewport = viewportWidth < 1480
+  const isNarrowViewport = viewportWidth < 1180
   const isLandingCompact = viewportWidth < 1180
+  const viewerPanelInlineStyle = isViewerFullscreen
+    ? {
+        ...viewerCardStyle,
+        width: "100%",
+        height: "100%",
+        borderRadius: 0,
+        display: "grid",
+        gridTemplateRows: "auto minmax(0, 1fr)",
+        background: "rgba(6,10,18,0.98)",
+      }
+    : viewerCardStyle
+  const viewerHeaderInlineStyle = isViewerFullscreen
+    ? {
+        ...panelHeaderStyle,
+        padding: "18px 24px",
+      }
+    : panelHeaderStyle
+  const viewerCanvasWrapInlineStyle = isViewerFullscreen
+    ? {
+        ...canvasWrapStyle,
+        padding: 20,
+        height: "100%",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+      }
+    : canvasWrapStyle
+  const viewerCanvasInlineStyle = isViewerFullscreen
+    ? {
+        ...canvasStyle,
+        height: "100%",
+        minHeight: 0,
+        flex: 1,
+      }
+    : canvasStyle
+  const hasPreparedGlb = glbDownloadState === "ready" && Boolean(glbDownloadUrl)
   const debugPanelData = {
     apiBaseUrl: API,
     projectId: projectId || project?.project_id || null,
@@ -1069,12 +1132,14 @@ function App() {
   }
 
   const openViewer = async () => {
-    setActiveFloor("building")
     const panel = viewerPanelRef.current
     if (!panel) return
-    if (!document.fullscreenElement) {
+    if (document.fullscreenElement !== panel) {
       await panel.requestFullscreen()
     }
+    window.requestAnimationFrame(() => {
+      viewerRef.current?.engine?.resize?.()
+    })
     pushToast("Browser viewer opened", "success")
   }
 
@@ -1086,7 +1151,42 @@ function App() {
       return
     }
     await panel.requestFullscreen()
+    window.requestAnimationFrame(() => {
+      viewerRef.current?.engine?.resize?.()
+    })
   }
+
+  useEffect(() => {
+    let resizeTimeout = 0
+
+    const syncViewerFullscreen = () => {
+      const isFullscreen = document.fullscreenElement === viewerPanelRef.current
+      setIsViewerFullscreen(isFullscreen)
+      window.requestAnimationFrame(() => {
+        viewerRef.current?.engine?.resize?.()
+      })
+      window.clearTimeout(resizeTimeout)
+      resizeTimeout = window.setTimeout(() => {
+        viewerRef.current?.engine?.resize?.()
+      }, 120)
+    }
+
+    syncViewerFullscreen()
+    document.addEventListener("fullscreenchange", syncViewerFullscreen)
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncViewerFullscreen)
+      window.clearTimeout(resizeTimeout)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (glbDownloadUrl) {
+        window.URL.revokeObjectURL(glbDownloadUrl)
+      }
+    }
+  }, [glbDownloadUrl])
 
   useEffect(() => {
     if (!canvasRef.current || !project || !geometryMeta) return
@@ -1157,7 +1257,7 @@ function App() {
           </div>
 
           <div style={{ ...landingHeroGridStyle, ...(isLandingCompact ? landingHeroGridCompactStyle : {}) }}>
-            <div>
+            <div style={landingHeroContentStyle}>
               <div style={landingBadgeStyle}>Architectural Intelligence Platform</div>
               <h1 style={landingTitleStyle}>Turn 2D Plans Into Real 3D Buildings</h1>
               <p style={landingTextStyle}>
@@ -1173,8 +1273,44 @@ function App() {
                 </button>
               </div>
 
-              <div style={{ ...landingSplitCardStyle, marginTop: 16, padding: 16, borderRadius: 18 }}>
-                <div style={landingInfoTitleStyle}>{authMode === "register" ? "Create account" : "Sign in"}</div>
+              <div style={featureStripStyle}>
+                {[
+                  [
+                    "Multi-Floor Support",
+                    "Upload up to three aligned floors and review them as one building composition.",
+                  ],
+                  [
+                    "Inner Wall Detection",
+                    "Separate the outer shell and interior partitions for clearer spatial reading.",
+                  ],
+                  [
+                    "Door & Window Extraction",
+                    "Infer openings from the drawing and place them back onto the correct wall segments.",
+                  ],
+                  [
+                    "Interactive 3D Viewing",
+                    "Orbit, zoom, screenshot, and export the generated building directly in the browser.",
+                  ],
+                ].map(([title, text]) => (
+                  <div key={title} style={featureStripCardStyle}>
+                    <div style={landingFeatureTitleStyle}>{title}</div>
+                    <div style={landingFeatureTextStyle}>{text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={landingHeroRailStyle}>
+              <div style={landingHeroAuthCardStyle}>
+                <div style={landingHeroAuthHeaderStyle}>
+                  <div>
+                    <div style={landingHeroAuthKickerStyle}>{authMode === "register" ? "Account Setup" : "Member Access"}</div>
+                    <div style={landingHeroAuthTitleStyle}>{authMode === "register" ? "Create account" : "Sign in"}</div>
+                  </div>
+                  <div style={landingHeroAuthCompactTextStyle}>
+                    Save project history and continue from any session.
+                  </div>
+                </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {authMode === "register" ? (
                     <input
@@ -1219,11 +1355,6 @@ function App() {
                       style={authInputStyle}
                     />
                   ) : null}
-                  <div style={{ ...helperTextStyle, marginTop: 0 }}>
-                    {authMode === "register"
-                      ? "Create an account to save your projects and continue from any session."
-                      : "Sign in to keep project history and secure model access."}
-                  </div>
                   {!authValidation.isValid ? (
                     <div style={{ ...helperTextStyle, color: "#ffd9a8", marginTop: 0 }}>
                       {authValidation.issues[0]}
@@ -1231,7 +1362,12 @@ function App() {
                   ) : null}
                   {authError ? <div style={{ ...helperTextStyle, color: "#ffb4b4" }}>{authError}</div> : null}
                   {authSuccess ? <div style={{ ...helperTextStyle, color: "#b7ffd2" }}>{authSuccess}</div> : null}
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ ...helperTextStyle, marginTop: 0 }}>
+                    {authMode === "register"
+                      ? "Create an account to save your projects and continue from any session."
+                      : "Sign in to keep project history and secure model access."}
+                  </div>
+                  <div style={landingHeroAuthActionsStyle}>
                     <button
                       style={buttonStylePrimary}
                       onClick={submitAuth}
@@ -1252,18 +1388,6 @@ function App() {
                   </div>
                 </div>
               </div>
-
-              <div style={featureStripStyle}>
-                {[
-                  "Room Detection",
-                  "Window & Door Placement",
-                  "Real-time 3D Visualization",
-                ].map((item) => (
-                  <div key={item} style={featureStripCardStyle}>
-                    {item}
-                  </div>
-                ))}
-              </div>
             </div>
 
           </div>
@@ -1282,19 +1406,6 @@ function App() {
                   <div style={landingInfoTextStyle}>{text}</div>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <div style={{ ...landingSplitSectionStyle, ...(isLandingCompact ? landingSplitSectionCompactStyle : {}) }}>
-            <div style={landingSplitCardStyle}>
-              <div style={panelEyebrowStyle}>Before</div>
-              <div style={landingInfoTitleStyle}>2D Architectural Plan</div>
-              <img src={landingPlanPreviewImage || "/landing/plan-2d-sample.svg"} alt="2D plan" style={landingBeforeAfterImageStyle} />
-            </div>
-            <div style={landingSplitCardStyle}>
-              <div style={panelEyebrowStyle}>After</div>
-              <div style={landingInfoTitleStyle}>Interactive 3D Building</div>
-              <img src="/landing/demo-local3d.png" alt="3D building" style={landingBeforeAfterImageStyle} />
             </div>
           </div>
 
@@ -1350,20 +1461,6 @@ function App() {
               {toast.message}
             </div>
           ))}
-        </div>
-
-        <div style={devDebugPanelStyle}>
-          <div style={devDebugPanelTitleStyle}>Debug</div>
-          <div style={devDebugPanelTextStyle}>API: {debugPanelData.apiBaseUrl}</div>
-          <div style={devDebugPanelTextStyle}>project_id: {String(debugPanelData.projectId)}</div>
-          <div style={devDebugPanelTextStyle}>floors: {debugPanelData.floorsLength}</div>
-          <div style={devDebugPanelTextStyle}>activeFloor: {String(debugPanelData.activeFloor)}</div>
-          <div style={devDebugPanelTextStyle}>floor0 polygon: {debugPanelData.floor0PolygonLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 inner_walls: {debugPanelData.floor0InnerWallsLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 doors: {debugPanelData.floor0DoorsLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 windows: {debugPanelData.floor0WindowsLength}</div>
-          <div style={devDebugPanelTextStyle}>floor0 image_url: {debugPanelData.floor0HasImageUrl ? "yes" : "no"}</div>
-          <div style={devDebugPanelTextStyle}>geometryMeta: {debugPanelData.hasGeometryMeta ? "yes" : "no"}</div>
         </div>
 
         <div style={{ ...topBarStyle, ...(isNarrowViewport ? topBarCompactStyle : {}) }}>
@@ -1747,8 +1844,8 @@ function App() {
               </div>
             </div>
 
-            <div style={viewerCardStyle} ref={viewerPanelRef}>
-              <div style={panelHeaderStyle}>
+            <div style={viewerPanelInlineStyle} ref={viewerPanelRef}>
+              <div style={viewerHeaderInlineStyle}>
                 <div>
                   <div style={panelEyebrowStyle}>Output</div>
                   <div style={panelTitleStyle}>3D Building View</div>
@@ -1759,8 +1856,30 @@ function App() {
                   <button style={viewerActionButtonStyle} onClick={downloadModel}>⬒ GLB</button>
                 </div>
               </div>
-              <div style={canvasWrapStyle}>
-                <canvas ref={canvasRef} style={canvasStyle} />
+              {glbDownloadState !== "idle" ? (
+                <div style={glbInlineStatusWrapStyle}>
+                  <div
+                    style={{
+                      ...glbInlineStatusStyle,
+                      ...(glbDownloadState === "error" ? glbInlineStatusErrorStyle : {}),
+                      ...(glbDownloadState === "ready" ? glbInlineStatusReadyStyle : {}),
+                    }}
+                  >
+                    <span>{glbDownloadMessage}</span>
+                    {hasPreparedGlb ? (
+                      <a
+                        href={glbDownloadUrl}
+                        download={glbDownloadName}
+                        style={glbDownloadLinkStyle}
+                      >
+                        Save GLB
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              <div style={viewerCanvasWrapInlineStyle}>
+                <canvas ref={canvasRef} style={viewerCanvasInlineStyle} />
                 <div style={canvasHintStyle}>Rotate: mouse drag · Zoom: scroll</div>
               </div>
             </div>
@@ -1787,6 +1906,27 @@ function App() {
                   {showGeometryDebug ? "Debug: ON" : "Debug: OFF"}
                 </button>
               </div>
+              {glbDownloadState !== "idle" ? (
+                <div
+                  style={{
+                    ...glbInlineStatusStyle,
+                    marginTop: 12,
+                    ...(glbDownloadState === "error" ? glbInlineStatusErrorStyle : {}),
+                    ...(glbDownloadState === "ready" ? glbInlineStatusReadyStyle : {}),
+                  }}
+                >
+                  <span>{glbDownloadMessage}</span>
+                  {hasPreparedGlb ? (
+                    <a
+                      href={glbDownloadUrl}
+                      download={glbDownloadName}
+                      style={glbDownloadLinkStyle}
+                    >
+                      GLB hazir: indir
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div style={infoPanelStyle}>
@@ -5097,7 +5237,7 @@ const shellStyle = {
 }
 
 const pageStyle = {
-  maxWidth: 1600,
+  width: "min(96vw, 1650px)",
   margin: "0 auto",
   position: "relative",
   zIndex: 1,
@@ -5206,9 +5346,9 @@ const landingShellStyle = {
 }
 
 const landingPageStyle = {
-  maxWidth: 1480,
+  width: "min(92vw, 1820px)",
   margin: "0 auto",
-  padding: "26px 28px 56px",
+  padding: "26px clamp(24px, 3vw, 40px) 56px",
   position: "relative",
   zIndex: 1,
 }
@@ -5237,14 +5377,22 @@ const landingTopBarCompactStyle = {
 
 const landingHeroGridStyle = {
   display: "grid",
-  gridTemplateColumns: "1fr",
-  gap: 28,
-  alignItems: "center",
+  gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 0.72fr)",
+  gap: 32,
+  alignItems: "start",
   marginBottom: 36,
 }
 
 const landingHeroGridCompactStyle = {
   gridTemplateColumns: "1fr",
+}
+
+const landingHeroContentStyle = {
+  display: "grid",
+  alignContent: "start",
+  gap: 20,
+  paddingTop: 20,
+  maxWidth: 860,
 }
 
 const landingBadgeStyle = {
@@ -5253,7 +5401,7 @@ const landingBadgeStyle = {
   gap: 10,
   padding: "10px 16px",
   borderRadius: 999,
-  background: "linear-gradient(135deg, rgba(122,92,255,0.22), rgba(34,211,238,0.14))",
+  background: "linear-gradient(135deg, rgba(56,189,248,0.2), rgba(16,185,129,0.14))",
   border: "1px solid rgba(255,255,255,0.12)",
   color: "#d8e9ff",
   fontSize: 12,
@@ -5274,37 +5422,104 @@ const landingTitleStyle = {
 }
 
 const landingTextStyle = {
-  marginTop: 18,
+  marginTop: 4,
   maxWidth: 680,
   color: "#b8c6d8",
   fontSize: 18,
-  lineHeight: 1.8,
+  lineHeight: 1.78,
 }
 
 const landingActionRowStyle = {
   display: "flex",
   gap: 14,
   flexWrap: "wrap",
-  marginTop: 24,
+  marginTop: 4,
 }
 
 const featureStripStyle = {
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
-  marginTop: 26,
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 14,
+  marginTop: 10,
+  maxWidth: 860,
 }
 
 const featureStripCardStyle = {
-  padding: "12px 16px",
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.05)",
+  padding: "16px 18px",
+  borderRadius: 20,
+  background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
   border: "1px solid rgba(255,255,255,0.08)",
   backdropFilter: "blur(14px)",
   color: "#e7efff",
-  fontSize: 13,
-  fontWeight: 700,
   boxShadow: "0 12px 28px rgba(0,0,0,0.12)",
+  minHeight: 104,
+  display: "grid",
+  alignContent: "start",
+  gap: 8,
+}
+
+const landingFeatureTitleStyle = {
+  fontSize: 14,
+  fontWeight: 800,
+  color: "#f5f9ff",
+}
+
+const landingFeatureTextStyle = {
+  color: "#aebfd1",
+  fontSize: 13,
+  lineHeight: 1.65,
+}
+
+const landingHeroRailStyle = {
+  display: "grid",
+  gap: 16,
+  alignContent: "start",
+  paddingTop: 34,
+}
+
+const landingHeroAuthCardStyle = {
+  padding: 20,
+  borderRadius: 26,
+  background: "linear-gradient(180deg, rgba(9, 15, 26, 0.72), rgba(12, 20, 34, 0.58))",
+  border: "1px solid rgba(255,255,255,0.08)",
+  backdropFilter: "blur(18px)",
+  boxShadow: "0 20px 44px rgba(0,0,0,0.16)",
+}
+
+const landingHeroAuthHeaderStyle = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 14,
+  marginBottom: 12,
+}
+
+const landingHeroAuthKickerStyle = {
+  color: "#d7e6f6",
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase",
+  marginBottom: 6,
+}
+
+const landingHeroAuthTitleStyle = {
+  color: "#fbfdff",
+  fontSize: 20,
+  fontWeight: 800,
+  letterSpacing: "-0.03em",
+}
+
+const landingHeroAuthCompactTextStyle = {
+  color: "#aebfd1",
+  fontSize: 13,
+  lineHeight: 1.6,
+}
+
+const landingHeroAuthActionsStyle = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
 }
 
 const landingPreviewCardStyle = {
@@ -5699,13 +5914,13 @@ const projectHealthStyle = {
 
 const mainGridStyle = {
   display: "grid",
-  gridTemplateColumns: "360px minmax(0, 1fr) 320px",
+  gridTemplateColumns: "280px minmax(0, 1.95fr) 280px",
   gap: 22,
   alignItems: "start",
 }
 
 const mainGridMediumStyle = {
-  gridTemplateColumns: "320px minmax(0, 1fr)",
+  gridTemplateColumns: "280px minmax(0, 1.45fr)",
 }
 
 const mainGridNarrowStyle = {
@@ -6096,19 +6311,19 @@ const loadingInlineStyle = {
 
 const viewerColumnStyle = {
   display: "grid",
-  gridTemplateColumns: "minmax(320px, 0.82fr) minmax(560px, 1.4fr)",
+  gridTemplateColumns: "minmax(360px, 0.92fr) minmax(0, 1.82fr)",
   gap: 22,
 }
 
 const workspaceColumnStyle = {
   display: "grid",
-  gap: 22,
+  gap: 24,
   alignContent: "start",
 }
 
 const rightRailStyle = {
   display: "grid",
-  gap: 14,
+  gap: 16,
   alignContent: "start",
 }
 
@@ -6185,12 +6400,12 @@ const panelTitleStyle = {
 }
 
 const panelBodyStyle = {
-  padding: 16,
+  padding: 18,
 }
 
 const planImageStyle = {
   width: "100%",
-  height: 500,
+  height: "min(58vh, 640px)",
   objectFit: "contain",
   background: "#ffffff",
   borderRadius: 22,
@@ -6240,20 +6455,20 @@ const legendSwatchStyle = {
 }
 
 const emptyPanelStyle = {
-  height: 500,
+  height: "min(58vh, 640px)",
   display: "grid",
   placeItems: "center",
   color: "#cbd5de",
 }
 
 const canvasWrapStyle = {
-  padding: 14,
+  padding: 16,
   position: "relative",
 }
 
 const canvasStyle = {
   width: "100%",
-  height: 860,
+  height: "min(72vh, 980px)",
   display: "block",
   borderRadius: 22,
   background: "linear-gradient(180deg,#ecf2fb 0%,#d9e4f1 100%)",
@@ -6312,6 +6527,46 @@ const viewerActionRowStyle = {
   gap: 8,
 }
 
+const glbInlineStatusWrapStyle = {
+  padding: "0 20px 12px",
+}
+
+const glbInlineStatusStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+  padding: "12px 14px",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "#d9e9ff",
+  fontSize: 13,
+}
+
+const glbInlineStatusReadyStyle = {
+  border: "1px solid rgba(109,203,170,0.26)",
+}
+
+const glbInlineStatusErrorStyle = {
+  border: "1px solid rgba(239,68,68,0.24)",
+  color: "#ffd4d4",
+}
+
+const glbDownloadLinkStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "10px 14px",
+  borderRadius: 12,
+  background: "linear-gradient(135deg, rgba(124,58,237,0.2), rgba(34,211,238,0.18))",
+  border: "1px solid rgba(120,162,255,0.24)",
+  color: "#f7fbff",
+  fontWeight: 800,
+  textDecoration: "none",
+}
+
 const viewerActionButtonStyle = {
   padding: "9px 12px",
   borderRadius: 12,
@@ -6356,36 +6611,6 @@ const toastSuccessStyle = {
 
 const toastErrorStyle = {
   border: "1px solid rgba(239,68,68,0.28)",
-}
-
-const devDebugPanelStyle = {
-  position: "fixed",
-  right: 20,
-  bottom: 20,
-  zIndex: 9,
-  width: 260,
-  padding: "12px 14px",
-  borderRadius: 16,
-  background: "rgba(10,16,24,0.86)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 18px 36px rgba(0,0,0,0.18)",
-  backdropFilter: "blur(12px)",
-}
-
-const devDebugPanelTitleStyle = {
-  color: "#f4f8fb",
-  fontSize: 12,
-  fontWeight: 800,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  marginBottom: 8,
-}
-
-const devDebugPanelTextStyle = {
-  color: "#b8c8d2",
-  fontSize: 11,
-  lineHeight: 1.55,
-  wordBreak: "break-word",
 }
 
 export default App
